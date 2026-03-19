@@ -1,0 +1,189 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --bg: #f6efe2;
+  --bg-2: #efe8d9;
+  --surface: rgba(255, 251, 245, 0.82);
+  --surface-strong: rgba(255, 252, 247, 0.94);
+  --surface-muted: rgba(246, 237, 225, 0.8);
+  --line: rgba(19, 38, 48, 0.14);
+  --ink: #132630;
+  --ink-soft: #49616a;
+  --brand: #ea6e45;
+  --brand-2: #77b5d9;
+  --brand-3: #a7cc58;
+  --danger: #b83f42;
+  --shadow: 0 28px 60px rgba(19, 38, 48, 0.16);
+}
+
+html.dark {
+  color-scheme: dark;
+  --bg: #08131b;
+  --bg-2: #0e1f29;
+  --surface: rgba(10, 25, 36, 0.78);
+  --surface-strong: rgba(13, 31, 44, 0.9);
+  --surface-muted: rgba(15, 32, 43, 0.74);
+  --line: rgba(164, 197, 214, 0.16);
+  --ink: #f7f3ea;
+  --ink-soft: #bfd0d7;
+  --brand: #ff8b61;
+  --brand-2: #83c4ea;
+  --brand-3: #bfdc71;
+  --danger: #ff7d7d;
+  --shadow: 0 28px 70px rgba(0, 0, 0, 0.34);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 8% 12%, rgba(234, 110, 69, 0.28), transparent 34%),
+    radial-gradient(circle at 82% 8%, rgba(119, 181, 217, 0.26), transparent 32%),
+    radial-gradient(circle at 76% 84%, rgba(167, 204, 88, 0.16), transparent 30%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 28%),
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px),
+    linear-gradient(180deg, var(--bg), var(--bg-2));
+  background-size: auto, auto, auto, auto, 30px 30px, 30px 30px, auto;
+  font-family: "SFMono-Regular", "Menlo", "Monaco", "Cascadia Mono", "Segoe UI Mono", monospace;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: "Avenir Next", "Avenir", "Segoe UI", "Helvetica Neue", sans-serif;
+  letter-spacing: -0.03em;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+input,
+select,
+textarea {
+  color: var(--ink);
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(20px);
+}
+
+.panel-strong {
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(22px);
+}
+
+.muted {
+  color: var(--ink-soft);
+}
+
+.hero-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mask-image: radial-gradient(circle at center, black 42%, transparent 92%);
+  opacity: 0.55;
+}
+
+.hero-grid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 52px 52px;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(58px);
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.orb-a {
+  left: -100px;
+  top: 60px;
+  height: 300px;
+  width: 300px;
+  background: rgba(234, 110, 69, 0.4);
+}
+
+.orb-b {
+  right: -120px;
+  top: 180px;
+  height: 360px;
+  width: 360px;
+  background: rgba(119, 181, 217, 0.34);
+}
+
+.orb-c {
+  bottom: -100px;
+  left: 34%;
+  height: 300px;
+  width: 300px;
+  background: rgba(167, 204, 88, 0.24);
+}
+
+.pill-button {
+  border-radius: 999px;
+  border: 1px solid transparent;
+  transition: transform 160ms ease, background-color 160ms ease, border-color 160ms ease, opacity 160ms ease;
+}
+
+.pill-button:hover {
+  transform: translateY(-1px);
+}
+
+.danger-panel {
+  border: 1px solid rgba(184, 63, 66, 0.28);
+  background: rgba(184, 63, 66, 0.1);
+  color: var(--danger);
+}
+
+.danger-button {
+  border: 1px solid rgba(184, 63, 66, 0.28);
+  background: rgba(184, 63, 66, 0.1);
+  color: var(--danger);
+}
+
+html.dark .danger-panel {
+  border-color: rgba(255, 125, 125, 0.32);
+  background: rgba(255, 125, 125, 0.12);
+}
+
+html.dark .danger-button {
+  border-color: rgba(255, 125, 125, 0.32);
+  background: rgba(255, 125, 125, 0.12);
+}
