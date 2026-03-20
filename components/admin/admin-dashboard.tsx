@@ -15,10 +15,10 @@ type AdminDashboardProps = {
 type DashboardTab = "flavor" | "steps" | "tester" | "archive";
 
 const TABS: Array<{ id: DashboardTab; label: string }> = [
-  { id: "flavor", label: "Flavor" },
-  { id: "steps", label: "Steps" },
-  { id: "tester", label: "Tester" },
-  { id: "archive", label: "Archive" },
+  { id: "flavor", label: "1. Flavor" },
+  { id: "steps", label: "2. Steps" },
+  { id: "tester", label: "3. Tester" },
+  { id: "archive", label: "4. Archive" },
 ];
 
 export function AdminDashboard({ adminEmail }: AdminDashboardProps) {
@@ -118,7 +118,7 @@ export function AdminDashboard({ adminEmail }: AdminDashboardProps) {
           </nav>
         </header>
 
-        <FlavorStudio activeTab={activeTab} />
+        <FlavorStudio activeTab={activeTab} onTabChange={setActiveTab} />
       </div>
     </main>
   );
