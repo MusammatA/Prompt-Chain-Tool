@@ -61,6 +61,7 @@ type FlavorDraft = {
 type StepDraft = {
   title: string;
   instruction: string;
+  system_prompt: string;
   output_label: string;
 };
 
@@ -80,6 +81,7 @@ const EMPTY_FLAVOR_DRAFT: FlavorDraft = {
 const EMPTY_STEP_DRAFT: StepDraft = {
   title: "",
   instruction: "",
+  system_prompt: "",
   output_label: "",
 };
 
@@ -114,6 +116,16 @@ function stringifyJson(value: unknown) {
   } catch {
     return String(value);
   }
+}
+
+function formatStepPreview(step: HumorFlavorStep) {
+  return [
+    `Step ${step.step_order}: ${step.title}${step.output_label ? ` -> ${step.output_label}` : ""}`,
+    step.system_prompt?.trim() ? `System prompt:\n${step.system_prompt.trim()}` : "",
+    step.instruction.trim() ? `User prompt:\n${step.instruction.trim()}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function getImageUrl(record?: ImageTestRecord | null) {
@@ -165,6 +177,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
   const [latestRun, setLatestRun] = useState<LatestRunState | null>(null);
 
   const selectedFlavor = flavors.find((item) => item.id === selectedFlavorId) ?? null;
+  const usesLegacyFlavorSchema = selectedFlavor?.schema_variant === "legacy";
   const selectedImage = images.find((item) => item.id === selectedImageId) ?? null;
   const selectedRun = runs.find((item) => item.id === selectedRunId) ?? runs[0] ?? null;
   const orderedSteps = [...steps].sort((a, b) => a.step_order - b.step_order);
@@ -176,10 +189,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
     WORKFLOW_STEPS.findIndex((step) => step.id === activeTab),
   );
   const promptChainPreview = orderedSteps
-    .map(
-      (step) =>
-        `Step ${step.step_order}: ${step.title}${step.output_label ? ` -> ${step.output_label}` : ""}\n${step.instruction}`,
-    )
+    .map((step) => formatStepPreview(step))
     .join("\n\n");
 
   async function loadBaseData(preferredFlavorId?: string) {
@@ -400,6 +410,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
         humor_flavor_id: selectedFlavorId,
         title: newStepDraft.title,
         instruction: newStepDraft.instruction,
+        system_prompt: newStepDraft.system_prompt,
         output_label: newStepDraft.output_label,
         step_order: orderedSteps.length + 1,
       });
@@ -422,8 +433,14 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
       const updated = await updateHumorFlavorStep(step.id, {
         title: step.title,
         instruction: step.instruction,
+        system_prompt: step.system_prompt || "",
         output_label: step.output_label || "",
         step_order: step.step_order,
+        llm_input_type_id: step.llm_input_type_id || undefined,
+        llm_output_type_id: step.llm_output_type_id || undefined,
+        llm_model_id: step.llm_model_id || undefined,
+        humor_flavor_step_type_id: step.humor_flavor_step_type_id || undefined,
+        llm_temperature: step.llm_temperature ?? undefined,
       });
       setSteps((current) => current.map((item) => (item.id === updated.id ? updated : item)).sort((a, b) => a.step_order - b.step_order));
       setFlashMessage(`Saved step ${updated.step_order}.`);
@@ -559,6 +576,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
             image_id: result.imageId,
             caption_text: caption,
             rank_index: index + 1,
+            profile_id: session.user.id,
           })),
         );
 
@@ -877,7 +895,9 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
       <div className="space-y-5">
         {renderStageHeader(
           "Build the ordered steps",
-          "Add every instruction that belongs in this humor flavor. You can reorder, edit, and delete steps here before moving on.",
+          usesLegacyFlavorSchema
+            ? "Your live Supabase project stores steps as prompt records, so this screen maps each step to a title, an optional system prompt, and a user prompt."
+            : "Add every instruction that belongs in this humor flavor. You can reorder, edit, and delete steps here before moving on.",
         )}
 
         <section className="panel rounded-[2rem] p-5 sm:p-6">
@@ -885,6 +905,11 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
             <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Active flavor</p>
             <h3 className="mt-2 text-xl font-semibold">{selectedFlavor?.name}</h3>
             <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{selectedFlavor?.description || "No description yet."}</p>
+            {usesLegacyFlavorSchema ? (
+              <p className="mt-3 text-xs leading-5 text-[var(--ink-soft)]">
+                Legacy schema detected: this project saves step prompts to the closest existing fields in `humor_flavor_steps`.
+              </p>
+            ) : null}
           </div>
 
           <div className="mt-6 space-y-4">
@@ -940,23 +965,50 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                         className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
                       />
                     </label>
-                    <label className="space-y-2">
-                      <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Output label</span>
-                      <input
-                        value={step.output_label || ""}
+                    {usesLegacyFlavorSchema ? (
+                      <div className="rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-xs leading-6 text-[var(--ink-soft)]">
+                        Output labels are preview-only in the rebuilt schema and are not stored in this legacy Supabase step table.
+                      </div>
+                    ) : (
+                      <label className="space-y-2">
+                        <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Output label</span>
+                        <input
+                          value={step.output_label || ""}
+                          onChange={(event) =>
+                            setSteps((current) =>
+                              current.map((item) => (item.id === step.id ? { ...item, output_label: event.target.value } : item)),
+                            )
+                          }
+                          placeholder="image_description"
+                          className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
+                        />
+                      </label>
+                    )}
+                  </div>
+
+                  {usesLegacyFlavorSchema ? (
+                    <label className="mt-4 block space-y-2">
+                      <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">System prompt</span>
+                      <textarea
+                        value={step.system_prompt || ""}
                         onChange={(event) =>
                           setSteps((current) =>
-                            current.map((item) => (item.id === step.id ? { ...item, output_label: event.target.value } : item)),
+                            current.map((item) =>
+                              item.id === step.id ? { ...item, system_prompt: event.target.value } : item,
+                            ),
                           )
                         }
-                        placeholder="image_description"
+                        rows={4}
+                        placeholder="Optional system behavior for this step."
                         className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
                       />
                     </label>
-                  </div>
+                  ) : null}
 
                   <label className="mt-4 block space-y-2">
-                    <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Instruction</span>
+                    <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">
+                      {usesLegacyFlavorSchema ? "User prompt" : "Instruction"}
+                    </span>
                     <textarea
                       value={step.instruction}
                       onChange={(event) =>
@@ -1012,18 +1064,38 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                   className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
                 />
               </label>
-              <label className="space-y-2">
-                <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Output label</span>
-                <input
-                  value={newStepDraft.output_label}
-                  onChange={(event) => setNewStepDraft((current) => ({ ...current, output_label: event.target.value }))}
-                  placeholder="funny_take"
+              {usesLegacyFlavorSchema ? (
+                <div className="rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-xs leading-6 text-[var(--ink-soft)]">
+                  New steps save to the legacy prompt-step schema using sensible defaults for input type, output type, and model.
+                </div>
+              ) : (
+                <label className="space-y-2">
+                  <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Output label</span>
+                  <input
+                    value={newStepDraft.output_label}
+                    onChange={(event) => setNewStepDraft((current) => ({ ...current, output_label: event.target.value }))}
+                    placeholder="funny_take"
+                    className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
+                  />
+                </label>
+              )}
+            </div>
+            {usesLegacyFlavorSchema ? (
+              <label className="mt-4 block space-y-2">
+                <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">System prompt</span>
+                <textarea
+                  value={newStepDraft.system_prompt}
+                  onChange={(event) => setNewStepDraft((current) => ({ ...current, system_prompt: event.target.value }))}
+                  rows={4}
+                  placeholder="Optional system behavior for this step."
                   className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
                 />
               </label>
-            </div>
+            ) : null}
             <label className="mt-4 block space-y-2">
-              <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Instruction</span>
+              <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">
+                {usesLegacyFlavorSchema ? "User prompt" : "Instruction"}
+              </span>
               <textarea
                 value={newStepDraft.instruction}
                 onChange={(event) => setNewStepDraft((current) => ({ ...current, instruction: event.target.value }))}
@@ -1264,7 +1336,9 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
       <div className="space-y-5">
         {renderStageHeader(
           "Read the saved caption batches",
-          "Review prompt-chain runs and the exact captions that a specific flavor produced.",
+          usesLegacyFlavorSchema
+            ? "Review the closest saved archive we can read from this Supabase project. Legacy caption rows are grouped into batches so you can still inspect outputs by flavor."
+            : "Review prompt-chain runs and the exact captions that a specific flavor produced.",
         )}
 
         <section className="panel rounded-[2rem] p-5 sm:p-6">
@@ -1350,6 +1424,11 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                           <p className="mt-2 text-sm text-[var(--ink-soft)]">
                             Created {formatTimestamp(selectedRun.created_at)} using {selectedRun.pipeline_model || "caption-pipeline-v1"}.
                           </p>
+                          {selectedRun.schema_variant === "legacy" ? (
+                            <p className="mt-2 text-xs leading-5 text-[var(--ink-soft)]">
+                              This batch was reconstructed from the legacy `captions` table because the newer run archive tables are not present in the connected Supabase project.
+                            </p>
+                          ) : null}
                         </div>
                         <div className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-xs text-[var(--ink-soft)]">
                           Status: {selectedRun.status || "completed"}
@@ -1362,20 +1441,22 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                         </div>
                       ) : null}
 
-                      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                        <div>
-                          <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Request payload</p>
-                          <pre className="mt-2 max-h-[280px] overflow-auto rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] p-3 text-xs leading-6 text-[var(--ink-soft)] whitespace-pre-wrap">
-                            {stringifyJson(selectedRun.request_payload)}
-                          </pre>
+                      {selectedRun.schema_variant === "legacy" ? null : (
+                        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                          <div>
+                            <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Request payload</p>
+                            <pre className="mt-2 max-h-[280px] overflow-auto rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] p-3 text-xs leading-6 text-[var(--ink-soft)] whitespace-pre-wrap">
+                              {stringifyJson(selectedRun.request_payload)}
+                            </pre>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Raw response</p>
+                            <pre className="mt-2 max-h-[280px] overflow-auto rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] p-3 text-xs leading-6 text-[var(--ink-soft)] whitespace-pre-wrap">
+                              {stringifyJson(selectedRun.raw_response)}
+                            </pre>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Raw response</p>
-                          <pre className="mt-2 max-h-[280px] overflow-auto rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] p-3 text-xs leading-6 text-[var(--ink-soft)] whitespace-pre-wrap">
-                            {stringifyJson(selectedRun.raw_response)}
-                          </pre>
-                        </div>
-                      </div>
+                      )}
                     </section>
 
                     <section className="rounded-[1.6rem] border border-[var(--line)] bg-[var(--surface-muted)] p-4 sm:p-5">

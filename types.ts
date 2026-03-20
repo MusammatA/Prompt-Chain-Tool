@@ -27,6 +27,7 @@ export interface HumorFlavor extends DatabaseRow {
   status?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  schema_variant?: "modern" | "legacy";
 }
 
 export interface HumorFlavorStep extends DatabaseRow {
@@ -38,6 +39,14 @@ export interface HumorFlavorStep extends DatabaseRow {
   output_label?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  system_prompt?: string | null;
+  user_prompt?: string | null;
+  llm_temperature?: number | null;
+  llm_input_type_id?: number | null;
+  llm_output_type_id?: number | null;
+  llm_model_id?: number | null;
+  humor_flavor_step_type_id?: number | null;
+  schema_variant?: "modern" | "legacy";
 }
 
 export interface ImageTestRecord extends DatabaseRow {
@@ -47,6 +56,8 @@ export interface ImageTestRecord extends DatabaseRow {
   cdn_url?: string | null;
   url?: string | null;
   created_at?: string | null;
+  additional_context?: string | null;
+  image_description?: string | null;
 }
 
 export interface PromptChainRun extends DatabaseRow {
@@ -60,6 +71,7 @@ export interface PromptChainRun extends DatabaseRow {
   raw_response?: unknown;
   created_at?: string | null;
   created_by?: string | null;
+  schema_variant?: "modern" | "legacy";
 }
 
 export interface GeneratedFlavorCaption extends DatabaseRow {
@@ -70,6 +82,7 @@ export interface GeneratedFlavorCaption extends DatabaseRow {
   caption_text: string;
   rank_index?: number | null;
   created_at?: string | null;
+  source_table?: string | null;
 }
 
 export interface PipelineUploadRegistration {

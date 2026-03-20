@@ -60,7 +60,13 @@ function buildPromptChain(flavor: HumorFlavor, steps: HumorFlavorStep[]) {
     flavor.description ? `Flavor description: ${flavor.description}` : "",
     ...ordered.map(
       (step) =>
-        `Step ${step.step_order}: ${step.title.trim()}${step.output_label ? ` -> ${step.output_label.trim()}` : ""}\n${step.instruction.trim()}`,
+        [
+          `Step ${step.step_order}: ${step.title.trim()}${step.output_label ? ` -> ${step.output_label.trim()}` : ""}`,
+          step.system_prompt?.trim() ? `System prompt:\n${step.system_prompt.trim()}` : "",
+          step.instruction.trim() ? `User prompt:\n${step.instruction.trim()}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n"),
     ),
   ]
     .filter(Boolean)
@@ -227,6 +233,7 @@ export async function runFlavorPromptChain(request: RunFlavorRequest): Promise<R
       id: step.id,
       order: step.step_order,
       title: step.title,
+      systemPrompt: step.system_prompt ?? null,
       instruction: step.instruction,
       outputLabel: step.output_label ?? null,
     })),
