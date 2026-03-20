@@ -180,6 +180,9 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
   const usesLegacyFlavorSchema = selectedFlavor?.schema_variant === "legacy";
   const selectedImage = images.find((item) => item.id === selectedImageId) ?? null;
   const selectedRun = runs.find((item) => item.id === selectedRunId) ?? runs[0] ?? null;
+  const selectedRunImageUrl =
+    selectedRun?.image_url ||
+    getImageUrl(images.find((item) => item.id === selectedRun?.image_id) ?? null);
   const orderedSteps = [...steps].sort((a, b) => a.step_order - b.step_order);
   const visibleCaptions = selectedRun
     ? captions.filter((item) => item.humor_flavor_run_id === selectedRun.id)
@@ -658,7 +661,14 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
             New flavor
           </button>
 
-          <div className="mt-5 space-y-3">
+          <div className="mt-5 rounded-[1.5rem] border border-[var(--line)] bg-[var(--surface-muted)] p-3">
+            <div className="flex items-center justify-between gap-3 px-1 pb-3">
+              <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">
+                {flavors.length} flavor{flavors.length === 1 ? "" : "s"}
+              </p>
+              <p className="text-[11px] text-[var(--ink-soft)]">Scroll to browse all</p>
+            </div>
+            <div className="max-h-[32rem] space-y-3 overflow-y-auto pr-1">
             {bootstrapping ? (
               <p className="rounded-[1.3rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-4 text-sm text-[var(--ink-soft)]">
                 Loading flavors...
@@ -703,6 +713,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                 );
               })
             )}
+            </div>
           </div>
         </section>
 
@@ -1207,15 +1218,27 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
               ) : null}
 
               {selectedImage ? (
-                <div className="overflow-hidden rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface-muted)]">
+                <div className="rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface-muted)] p-3">
                   {getImageUrl(selectedImage) ? (
-                    <img src={getImageUrl(selectedImage)} alt="" className="h-44 w-full object-cover" />
+                    <div className="flex min-h-[18rem] items-center justify-center overflow-hidden rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-strong)] p-3">
+                      <img
+                        src={getImageUrl(selectedImage)}
+                        alt={`Selected test image ${selectedImage.id}`}
+                        className="max-h-[26rem] w-full object-contain"
+                      />
+                    </div>
                   ) : (
-                    <div className="flex h-44 items-center justify-center text-sm text-[var(--ink-soft)]">No preview URL on this image row.</div>
+                    <div className="flex min-h-[18rem] items-center justify-center rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-strong)] text-sm text-[var(--ink-soft)]">
+                      No preview URL on this image row.
+                    </div>
                   )}
-                  <div className="flex items-center gap-2 px-4 py-3 text-xs text-[var(--ink-soft)]">
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-1 pt-3 text-xs text-[var(--ink-soft)]">
+                    <span className="font-medium text-[var(--ink)]">Selected image preview</span>
+                    <span className="truncate">Image id: {selectedImage.id}</span>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2 px-1 text-xs text-[var(--ink-soft)]">
                     <FileImage className="h-4 w-4" />
-                    Selected image id: {selectedImage.id}
+                    The full image is shown without cropping.
                   </div>
                 </div>
               ) : null}
@@ -1435,9 +1458,18 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                         </div>
                       </div>
 
-                      {selectedRun.image_url ? (
-                        <div className="mt-4 overflow-hidden rounded-[1.3rem] border border-[var(--line)]">
-                          <img src={selectedRun.image_url} alt="" className="h-52 w-full object-cover" />
+                      {selectedRunImageUrl ? (
+                        <div className="mt-4 rounded-[1.3rem] border border-[var(--line)] bg-[var(--surface-strong)] p-3">
+                          <div className="flex min-h-[18rem] items-center justify-center overflow-hidden rounded-[1rem] border border-[var(--line)] bg-[var(--surface-muted)] p-3">
+                            <img
+                              src={selectedRunImageUrl}
+                              alt={`Run preview ${selectedRun.id}`}
+                              className="max-h-[30rem] w-full object-contain"
+                            />
+                          </div>
+                          <p className="mt-3 text-xs text-[var(--ink-soft)]">
+                            Full image preview for the selected caption batch.
+                          </p>
                         </div>
                       ) : null}
 
