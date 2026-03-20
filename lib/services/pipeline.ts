@@ -35,18 +35,53 @@ export type RunFlavorResult = {
   imageUrl: string;
 };
 
+const PRESIGNED_URL_TIMEOUT_MS = 20_000;
+const IMAGE_UPLOAD_TIMEOUT_MS = 90_000;
+const IMAGE_REGISTER_TIMEOUT_MS = 45_000;
+const GENERATE_CAPTIONS_TIMEOUT_MS = 180_000;
+
 function extractErrorMessage(status: number, bodyText: string) {
   const trimmed = bodyText.trim();
   if (!trimmed) return `Request failed with status ${status}.`;
   return `${status}: ${trimmed.slice(0, 220)}`;
 }
 
+function describeRequestTarget(input: RequestInfo | URL) {
+  const rawValue =
+    typeof input === "string"
+      ? input
+      : input instanceof URL
+        ? input.toString()
+        : "url" in input
+          ? String(input.url)
+          : "";
+
+  try {
+    const parsed = new URL(rawValue);
+    return `${parsed.hostname}${parsed.pathname}`;
+  } catch {
+    return rawValue || "request";
+  }
+}
+
 async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, ms: number) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ms);
+  const requestTarget = describeRequestTarget(input);
+  const timeoutError = new Error(
+    `Request to ${requestTarget} timed out after ${Math.ceil(ms / 1000)} seconds. Please try again.`,
+  );
+  const timer = setTimeout(() => controller.abort(timeoutError), ms);
 
   try {
     return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      const reason = controller.signal.reason;
+      if (reason instanceof Error) throw reason;
+      throw timeoutError;
+    }
+
+    throw error;
   } finally {
     clearTimeout(timer);
   }
@@ -128,7 +163,7 @@ async function uploadFileToPipeline(accessToken: string, file: File): Promise<Up
       },
       body: JSON.stringify({ contentType: file.type }),
     },
-    20000,
+    PRESIGNED_URL_TIMEOUT_MS,
   );
 
   if (!step1Res.ok) {
@@ -149,7 +184,7 @@ async function uploadFileToPipeline(accessToken: string, file: File): Promise<Up
       },
       body: file,
     },
-    45000,
+    IMAGE_UPLOAD_TIMEOUT_MS,
   );
 
   if (!step2Res.ok) {
@@ -177,7 +212,7 @@ async function registerRemoteImage(accessToken: string, imageUrl: string): Promi
         isCommonUse: false,
       }),
     },
-    20000,
+    IMAGE_REGISTER_TIMEOUT_MS,
   );
 
   if (!res.ok) {
@@ -249,7 +284,7 @@ export async function runFlavorPromptChain(request: RunFlavorRequest): Promise<R
       },
       body: JSON.stringify(requestPayload),
     },
-    45000,
+    GENERATE_CAPTIONS_TIMEOUT_MS,
   );
 
   if (!res.ok) {
