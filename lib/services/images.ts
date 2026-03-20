@@ -1,5 +1,6 @@
 import type { ImageTestRecord } from "../../types";
 import { getSupabaseBrowserClientOrThrow } from "./client";
+import { SUPABASE_URL } from "../supabase-config";
 
 type ImageRow = Record<string, unknown>;
 
@@ -38,6 +39,21 @@ function normalizeImageRow(row: ImageRow): ImageTestRecord {
 
 export async function fetchImageTestSet(limit = 60) {
   const supabase = getSupabaseBrowserClientOrThrow();
+  const preferLegacyImageSchema =
+    SUPABASE_URL.toLowerCase().includes("secure.almostcrackd.ai") ||
+    SUPABASE_URL.toLowerCase().includes("qihsgnfjqmkjmoowyfbn.supabase.co");
+
+  if (preferLegacyImageSchema) {
+    const legacy = await supabase
+      .from("images")
+      .select("id, url, created_datetime_utc, additional_context, image_description")
+      .order("created_datetime_utc", { ascending: false })
+      .limit(limit);
+
+    if (legacy.error) throw new Error(legacy.error.message);
+    return (legacy.data ?? []).map((row) => normalizeImageRow(row as ImageRow));
+  }
+
   const modern = await supabase
     .from("images")
     .select("id, image_url, public_url, cdn_url, url, created_at")

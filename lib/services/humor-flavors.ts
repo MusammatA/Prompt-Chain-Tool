@@ -5,6 +5,7 @@ import type {
   PromptChainRun,
 } from "../../types";
 import { getSupabaseBrowserClientOrThrow } from "./client";
+import { SUPABASE_URL } from "../supabase-config";
 
 type FlavorInput = {
   name: string;
@@ -56,6 +57,9 @@ const LEGACY_IMAGE_INPUT_TYPE_ID = 1;
 const LEGACY_TEXT_INPUT_TYPE_ID = 2;
 const LEGACY_STRING_OUTPUT_TYPE_ID = 1;
 const LEGACY_ARRAY_OUTPUT_TYPE_ID = 2;
+const PREFER_LEGACY_HUMOR_SCHEMA =
+  SUPABASE_URL.toLowerCase().includes("secure.almostcrackd.ai") ||
+  SUPABASE_URL.toLowerCase().includes("qihsgnfjqmkjmoowyfbn.supabase.co");
 
 function asString(value: unknown) {
   return String(value ?? "").trim();
@@ -309,6 +313,17 @@ async function fetchLegacyCaptionRows(humorFlavorId: string, limit = 200) {
 
 export async function fetchHumorFlavors(limit = 100) {
   const supabase = getSupabaseBrowserClientOrThrow();
+  if (PREFER_LEGACY_HUMOR_SCHEMA) {
+    const legacy = await supabase
+      .from("humor_flavors")
+      .select("*")
+      .order("created_datetime_utc", { ascending: false })
+      .limit(limit);
+
+    if (legacy.error) throw new Error(legacy.error.message);
+    return (legacy.data ?? []).map((row) => normalizeFlavorRow(row as RowRecord));
+  }
+
   const modern = await supabase.from("humor_flavors").select("*").order("updated_at", { ascending: false }).limit(limit);
 
   if (!modern.error) return (modern.data ?? []).map((row) => normalizeFlavorRow(row as RowRecord));
@@ -326,6 +341,12 @@ export async function fetchHumorFlavors(limit = 100) {
 
 export async function createHumorFlavor(input: FlavorInput) {
   const supabase = getSupabaseBrowserClientOrThrow();
+  if (PREFER_LEGACY_HUMOR_SCHEMA) {
+    const legacy = await supabase.from("humor_flavors").insert(buildLegacyFlavorPayload(input)).select("*").single();
+    if (legacy.error) throw new Error(legacy.error.message);
+    return normalizeFlavorRow(legacy.data as RowRecord);
+  }
+
   const modern = await supabase.from("humor_flavors").insert(normalizeFlavorInput(input)).select("*").single();
 
   if (!modern.error) return normalizeFlavorRow(modern.data as RowRecord);
@@ -338,6 +359,21 @@ export async function createHumorFlavor(input: FlavorInput) {
 
 export async function updateHumorFlavor(id: string, input: Partial<FlavorInput>) {
   const supabase = getSupabaseBrowserClientOrThrow();
+  if (PREFER_LEGACY_HUMOR_SCHEMA) {
+    const legacy = await supabase
+      .from("humor_flavors")
+      .update({
+        slug: input.slug?.trim() || null,
+        description: input.description?.trim() || input.name?.trim() || null,
+      })
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    if (legacy.error) throw new Error(legacy.error.message);
+    return normalizeFlavorRow(legacy.data as RowRecord);
+  }
+
   const modern = await supabase
     .from("humor_flavors")
     .update({
@@ -376,6 +412,17 @@ export async function deleteHumorFlavor(id: string) {
 
 export async function fetchHumorFlavorSteps(humorFlavorId: string) {
   const supabase = getSupabaseBrowserClientOrThrow();
+  if (PREFER_LEGACY_HUMOR_SCHEMA) {
+    const legacy = await supabase
+      .from("humor_flavor_steps")
+      .select("*")
+      .eq("humor_flavor_id", humorFlavorId)
+      .order("order_by", { ascending: true });
+
+    if (legacy.error) throw new Error(legacy.error.message);
+    return (legacy.data ?? []).map((row) => normalizeStepRow(row as RowRecord));
+  }
+
   const modern = await supabase
     .from("humor_flavor_steps")
     .select("*")
@@ -397,6 +444,20 @@ export async function fetchHumorFlavorSteps(humorFlavorId: string) {
 
 export async function createHumorFlavorStep(input: StepInput) {
   const supabase = getSupabaseBrowserClientOrThrow();
+  if (PREFER_LEGACY_HUMOR_SCHEMA) {
+    const legacy = await supabase
+      .from("humor_flavor_steps")
+      .insert({
+        humor_flavor_id: input.humor_flavor_id,
+        ...buildLegacyStepPayload(input, { includeDefaults: true }),
+      })
+      .select("*")
+      .single();
+
+    if (legacy.error) throw new Error(legacy.error.message);
+    return normalizeStepRow(legacy.data as RowRecord);
+  }
+
   const modern = await supabase
     .from("humor_flavor_steps")
     .insert({
@@ -427,6 +488,18 @@ export async function createHumorFlavorStep(input: StepInput) {
 
 export async function updateHumorFlavorStep(id: string, input: Partial<Omit<StepInput, "humor_flavor_id">>) {
   const supabase = getSupabaseBrowserClientOrThrow();
+  if (PREFER_LEGACY_HUMOR_SCHEMA) {
+    const legacy = await supabase
+      .from("humor_flavor_steps")
+      .update(buildLegacyStepPayload(input, { includeDefaults: false }))
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    if (legacy.error) throw new Error(legacy.error.message);
+    return normalizeStepRow(legacy.data as RowRecord);
+  }
+
   const modern = await supabase
     .from("humor_flavor_steps")
     .update({
@@ -464,6 +537,17 @@ export async function reorderHumorFlavorSteps(humorFlavorId: string, stepIdsInOr
 
   for (let index = 0; index < stepIdsInOrder.length; index += 1) {
     const stepId = stepIdsInOrder[index];
+    if (PREFER_LEGACY_HUMOR_SCHEMA) {
+      const legacy = await supabase
+        .from("humor_flavor_steps")
+        .update({ order_by: index + 1 })
+        .eq("id", stepId)
+        .eq("humor_flavor_id", humorFlavorId);
+
+      if (legacy.error) throw new Error(legacy.error.message);
+      continue;
+    }
+
     const modern = await supabase
       .from("humor_flavor_steps")
       .update({ step_order: index + 1 })
@@ -485,6 +569,10 @@ export async function reorderHumorFlavorSteps(humorFlavorId: string, stepIdsInOr
 
 export async function fetchPromptChainRuns(humorFlavorId: string, limit = 40) {
   const supabase = getSupabaseBrowserClientOrThrow();
+  if (PREFER_LEGACY_HUMOR_SCHEMA) {
+    return synthesizeLegacyRuns(await fetchLegacyCaptionRows(humorFlavorId, Math.max(limit * 12, 120)));
+  }
+
   const modern = await supabase
     .from("humor_flavor_runs")
     .select("*")
@@ -514,6 +602,10 @@ export async function fetchPromptChainRuns(humorFlavorId: string, limit = 40) {
 
 export async function fetchGeneratedFlavorCaptions(humorFlavorId: string, limit = 200) {
   const supabase = getSupabaseBrowserClientOrThrow();
+  if (PREFER_LEGACY_HUMOR_SCHEMA) {
+    return normalizeCaptionRows(await fetchLegacyCaptionRows(humorFlavorId, limit));
+  }
+
   const modern = await supabase
     .from("humor_flavor_captions")
     .select("*")
@@ -529,6 +621,22 @@ export async function fetchGeneratedFlavorCaptions(humorFlavorId: string, limit 
 
 export async function createPromptChainRun(input: RunInput) {
   const supabase = getSupabaseBrowserClientOrThrow();
+  if (PREFER_LEGACY_HUMOR_SCHEMA) {
+    return {
+      id: `legacy-run-${Date.now()}`,
+      humor_flavor_id: input.humor_flavor_id,
+      image_id: input.image_id ?? null,
+      image_url: input.image_url ?? null,
+      status: input.status ?? "completed",
+      pipeline_model: input.pipeline_model ?? "Legacy caption archive",
+      request_payload: input.request_payload ?? null,
+      raw_response: input.raw_response ?? null,
+      created_at: new Date().toISOString(),
+      created_by: input.created_by ?? null,
+      schema_variant: "legacy",
+    } satisfies PromptChainRun;
+  }
+
   const modern = await supabase
     .from("humor_flavor_runs")
     .insert({
@@ -575,6 +683,25 @@ export async function createGeneratedFlavorCaptions(items: CaptionInput[]) {
   if (items.length === 0) return [] as GeneratedFlavorCaption[];
 
   const supabase = getSupabaseBrowserClientOrThrow();
+  if (PREFER_LEGACY_HUMOR_SCHEMA) {
+    const legacy = await supabase
+      .from("captions")
+      .insert(
+        items.map((item) => ({
+          content: item.caption_text.trim(),
+          humor_flavor_id: item.humor_flavor_id,
+          image_id: item.image_id ?? null,
+          profile_id: item.profile_id ?? null,
+          is_public: false,
+          is_featured: false,
+        })),
+      )
+      .select("id, created_datetime_utc, content, image_id, humor_flavor_id, llm_prompt_chain_id, profile_id");
+
+    if (legacy.error) throw new Error(legacy.error.message);
+    return normalizeCaptionRows((legacy.data ?? []) as RowRecord[], items[0]?.humor_flavor_run_id);
+  }
+
   const modern = await supabase
     .from("humor_flavor_captions")
     .insert(
