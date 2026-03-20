@@ -22,12 +22,12 @@ const TABS: Array<{ id: DashboardTab; label: string }> = [
 ];
 
 export function AdminDashboard({ adminEmail }: AdminDashboardProps) {
-  const [themeMode, setThemeMode] = useState<ThemeMode>("system");
+  const [themeMode, setThemeMode] = useState<ThemeMode>("light");
   const [activeTab, setActiveTab] = useState<DashboardTab>("flavor");
   const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
-    const stored = typeof window === "undefined" ? "system" : window.localStorage.getItem(THEME_STORAGE_KEY);
+    const stored = typeof window === "undefined" ? "light" : window.localStorage.getItem(THEME_STORAGE_KEY);
     setThemeMode(normalizeThemeMode(stored));
   }, []);
 

@@ -4,7 +4,8 @@ export const THEME_STORAGE_KEY = "humor_admin_theme";
 
 export function normalizeThemeMode(value: unknown): ThemeMode {
   if (value === "light" || value === "dark") return value;
-  return "system";
+  if (value === "system") return value;
+  return "light";
 }
 
 export function resolveTheme(mode: ThemeMode, prefersDark: boolean) {

@@ -20,7 +20,7 @@ export default function RootLayout({
           {`
             try {
               var stored = window.localStorage.getItem("humor_admin_theme");
-              var mode = stored === "light" || stored === "dark" ? stored : "system";
+              var mode = stored === "light" || stored === "dark" || stored === "system" ? stored : "light";
               var resolved = mode === "system"
                 ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
                 : mode;
