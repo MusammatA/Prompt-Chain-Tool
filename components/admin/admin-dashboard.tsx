@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOut, ScrollText, Sparkles } from "lucide-react";
+import { ListOrdered, LogOut, ScrollText, Sparkles, TestTube2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "../../lib/supabase-browser";
 import { normalizeThemeMode, resolveTheme, THEME_STORAGE_KEY } from "../../lib/theme";
@@ -12,16 +12,18 @@ type AdminDashboardProps = {
   adminEmail: string;
 };
 
-type DashboardTab = "create-flavor" | "caption-archive";
+type DashboardTab = "flavor" | "steps" | "tester" | "archive";
 
 const TABS: Array<{ id: DashboardTab; label: string }> = [
-  { id: "create-flavor", label: "Create Humor Flavor" },
-  { id: "caption-archive", label: "Caption Archive" },
+  { id: "flavor", label: "Flavor" },
+  { id: "steps", label: "Steps" },
+  { id: "tester", label: "Tester" },
+  { id: "archive", label: "Archive" },
 ];
 
 export function AdminDashboard({ adminEmail }: AdminDashboardProps) {
   const [themeMode, setThemeMode] = useState<ThemeMode>("system");
-  const [activeTab, setActiveTab] = useState<DashboardTab>("create-flavor");
+  const [activeTab, setActiveTab] = useState<DashboardTab>("flavor");
   const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
@@ -95,7 +97,8 @@ export function AdminDashboard({ adminEmail }: AdminDashboardProps) {
           <nav className="mt-6 flex flex-wrap gap-3">
             {TABS.map((tab) => {
               const active = activeTab === tab.id;
-              const Icon = tab.id === "create-flavor" ? Sparkles : ScrollText;
+              const Icon =
+                tab.id === "flavor" ? Sparkles : tab.id === "steps" ? ListOrdered : tab.id === "tester" ? TestTube2 : ScrollText;
               return (
                 <button
                   key={tab.id}

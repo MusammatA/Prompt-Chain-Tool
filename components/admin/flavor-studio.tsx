@@ -42,7 +42,7 @@ import { runFlavorPromptChain, type RunFlavorResult } from "../../lib/services/p
 import { getCurrentSessionOrThrow, getErrorMessage } from "../../lib/services/client";
 
 type FlavorStudioProps = {
-  activeTab: "create-flavor" | "caption-archive";
+  activeTab: "flavor" | "steps" | "tester" | "archive";
 };
 
 type FlavorDraft = {
@@ -506,6 +506,628 @@ export function FlavorStudio({ activeTab }: FlavorStudioProps) {
     }
   }
 
+  function renderFlavorEditor() {
+    return (
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_360px]">
+        <section className="panel rounded-[2rem] p-5 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.26em] text-[var(--ink-soft)]">Flavor Tab</p>
+              <h2 className="mt-3 text-3xl font-semibold">{selectedFlavor ? "Edit active flavor" : "Author a new flavor"}</h2>
+              <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--ink-soft)]">
+                Keep the flavor identity, slug, description, and working notes together in one dedicated tab.
+              </p>
+            </div>
+            {loadingFlavorData ? (
+              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-muted)] px-3 py-2 text-xs text-[var(--ink-soft)]">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Loading flavor data
+              </div>
+            ) : null}
+          </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <label className="space-y-2">
+              <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Flavor name</span>
+              <input
+                value={flavorDraft.name}
+                onChange={(event) =>
+                  setFlavorDraft((current) => ({
+                    ...current,
+                    name: event.target.value,
+                    slug: current.slug || slugify(event.target.value),
+                  }))
+                }
+                placeholder="Observational chaos"
+                className="w-full rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
+              />
+            </label>
+            <label className="space-y-2">
+              <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Slug</span>
+              <input
+                value={flavorDraft.slug}
+                onChange={(event) => setFlavorDraft((current) => ({ ...current, slug: slugify(event.target.value) }))}
+                placeholder="observational-chaos"
+                className="w-full rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
+              />
+            </label>
+            <label className="space-y-2 md:col-span-2">
+              <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Description</span>
+              <textarea
+                value={flavorDraft.description}
+                onChange={(event) => setFlavorDraft((current) => ({ ...current, description: event.target.value }))}
+                placeholder="Short summary of what makes this humor flavor work."
+                rows={3}
+                className="w-full rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
+              />
+            </label>
+            <label className="space-y-2 md:col-span-2">
+              <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Internal notes</span>
+              <textarea
+                value={flavorDraft.notes}
+                onChange={(event) => setFlavorDraft((current) => ({ ...current, notes: event.target.value }))}
+                placeholder="Prompt-writing notes, style guardrails, or evaluation reminders."
+                rows={4}
+                className="w-full rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
+              />
+            </label>
+            <label className="space-y-2">
+              <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Status</span>
+              <select
+                value={flavorDraft.status}
+                onChange={(event) => setFlavorDraft((current) => ({ ...current, status: event.target.value }))}
+                className="w-full rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
+              >
+                <option value="draft">Draft</option>
+                <option value="active">Active</option>
+                <option value="archived">Archived</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => void handleSaveFlavor()}
+              disabled={savingFlavor}
+              className="pill-button inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              <Save className="h-4 w-4" />
+              {savingFlavor ? "Saving..." : selectedFlavor ? "Update flavor" : "Create flavor"}
+            </button>
+            {selectedFlavor ? (
+              <button
+                type="button"
+                onClick={() => void handleDeleteFlavor()}
+                disabled={savingFlavor}
+                className="danger-button pill-button inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete flavor
+              </button>
+            ) : null}
+          </div>
+        </section>
+
+        <section className="panel rounded-[2rem] p-5 sm:p-6">
+          <div className="flex items-start gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] text-white">
+              <FlaskConical className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-[0.26em] text-[var(--ink-soft)]">Prompt Chain Preview</p>
+              <h2 className="mt-2 text-2xl font-semibold">See the flavor at a glance</h2>
+            </div>
+          </div>
+          <pre className="mt-5 max-h-[360px] overflow-auto rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface-muted)] p-4 text-xs leading-6 text-[var(--ink-soft)] whitespace-pre-wrap">
+            {promptChainPreview || "No steps yet. Add steps to preview the humor flavor prompt chain."}
+          </pre>
+        </section>
+      </div>
+    );
+  }
+
+  function renderStepsBuilder() {
+    return (
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_360px]">
+        <section className="panel rounded-[2rem] p-5 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-[0.26em] text-[var(--ink-soft)]">Steps Tab</p>
+              <h2 className="mt-3 text-3xl font-semibold">Build the ordered prompt chain</h2>
+              <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--ink-soft)]">
+                Create new steps, edit them, and move them up or down to set the exact order the humor flavor should follow.
+              </p>
+            </div>
+            <div className="rounded-[1.2rem] border border-[var(--line)] bg-[var(--surface-muted)] px-3 py-2 text-xs text-[var(--ink-soft)]">
+              {orderedSteps.length} step{orderedSteps.length === 1 ? "" : "s"}
+            </div>
+          </div>
+
+          {selectedFlavor ? (
+            <>
+              <div className="mt-6 space-y-4">
+                {orderedSteps.length === 0 ? (
+                  <p className="rounded-[1.3rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-4 text-sm text-[var(--ink-soft)]">
+                    No steps yet. Add the description step, the joke step, and the final caption-generation step to start.
+                  </p>
+                ) : (
+                  orderedSteps.map((step, index) => (
+                    <article key={step.id} className="rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface-muted)] p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="inline-flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] text-sm font-semibold text-white">
+                            {step.step_order}
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Flavor step</p>
+                            <p className="text-sm text-[var(--ink-soft)]">Reorder to define the prompt chain.</p>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            disabled={index === 0 || stepActionId === step.id}
+                            onClick={() => void moveStep(step.id, -1)}
+                            className="pill-button inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-xs font-medium text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <ChevronUp className="h-3.5 w-3.5" />
+                            Move up
+                          </button>
+                          <button
+                            type="button"
+                            disabled={index === orderedSteps.length - 1 || stepActionId === step.id}
+                            onClick={() => void moveStep(step.id, 1)}
+                            className="pill-button inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-xs font-medium text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <ChevronDown className="h-3.5 w-3.5" />
+                            Move down
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
+                        <label className="space-y-2">
+                          <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Title</span>
+                          <input
+                            value={step.title}
+                            onChange={(event) =>
+                              setSteps((current) =>
+                                current.map((item) => (item.id === step.id ? { ...item, title: event.target.value } : item)),
+                              )
+                            }
+                            className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
+                          />
+                        </label>
+                        <label className="space-y-2">
+                          <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Output label</span>
+                          <input
+                            value={step.output_label || ""}
+                            onChange={(event) =>
+                              setSteps((current) =>
+                                current.map((item) => (item.id === step.id ? { ...item, output_label: event.target.value } : item)),
+                              )
+                            }
+                            placeholder="image_description"
+                            className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
+                          />
+                        </label>
+                      </div>
+
+                      <label className="mt-4 block space-y-2">
+                        <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Instruction</span>
+                        <textarea
+                          value={step.instruction}
+                          onChange={(event) =>
+                            setSteps((current) =>
+                              current.map((item) => (item.id === step.id ? { ...item, instruction: event.target.value } : item)),
+                            )
+                          }
+                          rows={4}
+                          className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
+                        />
+                      </label>
+
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        <button
+                          type="button"
+                          onClick={() => void handleSaveStep(step)}
+                          disabled={stepActionId === step.id}
+                          className="pill-button inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          {stepActionId === step.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                          Save step
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteStep(step.id)}
+                          disabled={stepActionId === step.id}
+                          className="danger-button pill-button inline-flex items-center gap-2 rounded-full px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Delete step
+                        </button>
+                      </div>
+                    </article>
+                  ))
+                )}
+              </div>
+
+              <div className="mt-6 rounded-[1.5rem] border border-dashed border-[var(--line)] bg-[var(--surface-muted)] p-4 sm:p-5">
+                <div className="flex items-center gap-3">
+                  <Plus className="h-5 w-5 text-[var(--brand)]" />
+                  <div>
+                    <h3 className="text-xl font-semibold">Create new flavor step</h3>
+                    <p className="text-sm text-[var(--ink-soft)]">Add the next ordered instruction for this humor flavor.</p>
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
+                  <label className="space-y-2">
+                    <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Step title</span>
+                    <input
+                      value={newStepDraft.title}
+                      onChange={(event) => setNewStepDraft((current) => ({ ...current, title: event.target.value }))}
+                      placeholder="Describe the image"
+                      className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
+                    />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Output label</span>
+                    <input
+                      value={newStepDraft.output_label}
+                      onChange={(event) => setNewStepDraft((current) => ({ ...current, output_label: event.target.value }))}
+                      placeholder="funny_take"
+                      className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
+                    />
+                  </label>
+                </div>
+                <label className="mt-4 block space-y-2">
+                  <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Instruction</span>
+                  <textarea
+                    value={newStepDraft.instruction}
+                    onChange={(event) => setNewStepDraft((current) => ({ ...current, instruction: event.target.value }))}
+                    rows={4}
+                    placeholder="Take the output from step 1 and say something funny about it."
+                    className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void handleCreateStep()}
+                  disabled={stepActionId === "new-step"}
+                  className="pill-button mt-4 inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {stepActionId === "new-step" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  Add step
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="mt-6 rounded-[1.3rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-4 text-sm text-[var(--ink-soft)]">
+              Create a flavor first, then you can add, edit, delete, and reorder its steps here.
+            </p>
+          )}
+        </section>
+
+        <section className="panel rounded-[2rem] p-5 sm:p-6">
+          <div className="flex items-start gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] text-white">
+              <FlaskConical className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-[0.26em] text-[var(--ink-soft)]">Prompt Chain Preview</p>
+              <h2 className="mt-2 text-2xl font-semibold">Keep the order visible</h2>
+            </div>
+          </div>
+          <pre className="mt-5 max-h-[360px] overflow-auto rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface-muted)] p-4 text-xs leading-6 text-[var(--ink-soft)] whitespace-pre-wrap">
+            {promptChainPreview || "No steps yet. Add steps to preview the humor flavor prompt chain."}
+          </pre>
+        </section>
+      </div>
+    );
+  }
+
+  function renderTester() {
+    return (
+      <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <section className="panel rounded-[2rem] p-5 sm:p-6">
+          <div className="flex items-start gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] text-white">
+              <FlaskConical className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-[0.26em] text-[var(--ink-soft)]">Prompt Chain Preview</p>
+              <h2 className="mt-2 text-2xl font-semibold">Current chain snapshot</h2>
+            </div>
+          </div>
+          <pre className="mt-5 max-h-[560px] overflow-auto rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface-muted)] p-4 text-xs leading-6 text-[var(--ink-soft)] whitespace-pre-wrap">
+            {promptChainPreview || "No steps yet. Add steps to preview the humor flavor prompt chain."}
+          </pre>
+        </section>
+
+        <section className="panel rounded-[2rem] p-5 sm:p-6">
+          <div className="flex items-start gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-3))] text-white">
+              <TestTube2 className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-[0.26em] text-[var(--ink-soft)]">Tester Tab</p>
+              <h2 className="mt-2 text-2xl font-semibold">Test a humor flavor with the REST API</h2>
+              <p className="mt-2 text-sm leading-7 text-[var(--ink-soft)]">
+                Run the active flavor against an image from your test set, a remote image URL, or a new upload.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-4">
+            <label className="space-y-2">
+              <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Image test set</span>
+              <select
+                value={selectedImageId}
+                onChange={(event) => {
+                  setSelectedImageId(event.target.value);
+                  setUploadFile(null);
+                }}
+                className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
+              >
+                <option value="">Choose from images table</option>
+                {images.map((image) => (
+                  <option key={image.id} value={image.id}>
+                    {image.id}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {imageLibraryError ? (
+              <p className="danger-panel rounded-[1.1rem] px-3 py-3 text-sm">
+                Could not read the image test set: {imageLibraryError}
+              </p>
+            ) : null}
+
+            {selectedImage ? (
+              <div className="overflow-hidden rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface-muted)]">
+                {getImageUrl(selectedImage) ? (
+                  <img src={getImageUrl(selectedImage)} alt="" className="h-44 w-full object-cover" />
+                ) : (
+                  <div className="flex h-44 items-center justify-center text-sm text-[var(--ink-soft)]">No preview URL on this image row.</div>
+                )}
+                <div className="flex items-center gap-2 px-4 py-3 text-xs text-[var(--ink-soft)]">
+                  <FileImage className="h-4 w-4" />
+                  Selected image id: {selectedImage.id}
+                </div>
+              </div>
+            ) : null}
+
+            <label className="space-y-2">
+              <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Or paste image URL</span>
+              <input
+                value={manualImageUrl}
+                onChange={(event) => {
+                  setManualImageUrl(event.target.value);
+                  if (event.target.value.trim()) {
+                    setSelectedImageId("");
+                    setUploadFile(null);
+                  }
+                }}
+                placeholder="https://..."
+                className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
+              />
+            </label>
+
+            <label className="space-y-2">
+              <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Or upload image file</span>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(event) => {
+                  const file = event.target.files?.[0] ?? null;
+                  setUploadFile(file);
+                  if (file) {
+                    setSelectedImageId("");
+                    setManualImageUrl("");
+                  }
+                }}
+                className="block w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-sm"
+              />
+              {uploadFile ? <p className="text-xs text-[var(--ink-soft)]">Selected file: {uploadFile.name}</p> : null}
+            </label>
+          </div>
+
+          {runError ? <p className="danger-panel mt-5 rounded-[1.2rem] px-4 py-3 text-sm">{runError}</p> : null}
+
+          <button
+            type="button"
+            onClick={() => void handleRunFlavor()}
+            disabled={runningTest || !selectedFlavor}
+            className="pill-button mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-3))] px-5 py-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {runningTest ? <Loader2 className="h-4 w-4 animate-spin" /> : <WandSparkles className="h-4 w-4" />}
+            {runningTest ? "Testing flavor..." : "Generate captions with REST API"}
+          </button>
+
+          {latestRun ? (
+            <div className="mt-5 rounded-[1.5rem] border border-[var(--line)] bg-[var(--surface-muted)] p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Latest result</p>
+                  <h3 className="mt-2 text-xl font-semibold">{latestRun.captions.length} caption{latestRun.captions.length === 1 ? "" : "s"} returned</h3>
+                </div>
+                <div className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-xs text-[var(--ink-soft)]">
+                  Model: {latestRun.modelTag}
+                </div>
+              </div>
+              <div className="mt-4 space-y-3">
+                {latestRun.captions.length === 0 ? (
+                  <p className="text-sm text-[var(--ink-soft)]">The API returned a response, but no caption strings were extracted.</p>
+                ) : (
+                  latestRun.captions.map((caption, index) => (
+                    <div key={`${caption}-${index}`} className="rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-sm leading-6">
+                      <span className="mr-2 text-xs uppercase tracking-[0.18em] text-[var(--ink-soft)]">#{index + 1}</span>
+                      {caption}
+                    </div>
+                  ))
+                )}
+              </div>
+              {latestRun.storageWarning ? (
+                <p className="danger-panel mt-4 rounded-[1rem] px-3 py-3 text-sm">
+                  The test run succeeded, but saving the archive failed: {latestRun.storageWarning}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </section>
+      </div>
+    );
+  }
+
+  function renderArchive() {
+    return (
+      <section className="panel rounded-[2rem] p-5 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.26em] text-[var(--ink-soft)]">Archive Tab</p>
+            <h2 className="mt-3 text-3xl font-semibold">Read captions produced by a humor flavor</h2>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--ink-soft)]">
+              Review saved prompt-chain runs and inspect the exact captions a specific flavor produced.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void loadFlavorData(selectedFlavorId)}
+            disabled={!selectedFlavorId || loadingFlavorData}
+            className="pill-button inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-3 text-sm font-medium text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <RefreshCw className={`h-4 w-4 ${loadingFlavorData ? "animate-spin" : ""}`} />
+            Refresh archive
+          </button>
+        </div>
+
+        {!selectedFlavor ? (
+          <p className="mt-6 rounded-[1.3rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-4 text-sm text-[var(--ink-soft)]">
+            Select a humor flavor from the directory to read its generated captions.
+          </p>
+        ) : (
+          <div className="mt-6 grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
+            <aside className="space-y-3">
+              {runs.length === 0 ? (
+                <p className="rounded-[1.3rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-4 text-sm text-[var(--ink-soft)]">
+                  No saved runs yet for {selectedFlavor.name}. Generate captions in the tester tab to build an archive.
+                </p>
+              ) : (
+                runs.map((run) => {
+                  const active = run.id === (selectedRun?.id || "");
+                  const runCaptions = captions.filter((item) => item.humor_flavor_run_id === run.id);
+                  return (
+                    <button
+                      key={run.id}
+                      type="button"
+                      onClick={() => setSelectedRunId(run.id)}
+                      className={`w-full rounded-[1.4rem] border px-4 py-4 text-left transition ${
+                        active
+                          ? "border-transparent bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] text-white shadow-panel"
+                          : "border-[var(--line)] bg-[var(--surface-muted)] text-[var(--ink)] hover:bg-[var(--surface-strong)]"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold">{formatTimestamp(run.created_at)}</p>
+                          <p className={`mt-1 text-xs ${active ? "text-white/80" : "text-[var(--ink-soft)]"}`}>
+                            {run.pipeline_model || "caption-pipeline-v1"}
+                          </p>
+                        </div>
+                        <span
+                          className={`rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.18em] ${
+                            active ? "bg-white/15 text-white" : "bg-[var(--surface-strong)] text-[var(--ink-soft)]"
+                          }`}
+                        >
+                          {runCaptions.length} caption{runCaptions.length === 1 ? "" : "s"}
+                        </span>
+                      </div>
+                      <p className={`mt-3 text-xs ${active ? "text-white/80" : "text-[var(--ink-soft)]"}`}>
+                        Image id: {run.image_id || "not saved"}
+                      </p>
+                    </button>
+                  );
+                })
+              )}
+            </aside>
+
+            <div className="space-y-5">
+              {selectedRun ? (
+                <>
+                  <section className="rounded-[1.6rem] border border-[var(--line)] bg-[var(--surface-muted)] p-4 sm:p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Run summary</p>
+                        <h3 className="mt-2 text-2xl font-semibold">{selectedFlavor.name}</h3>
+                        <p className="mt-2 text-sm text-[var(--ink-soft)]">
+                          Created {formatTimestamp(selectedRun.created_at)} using {selectedRun.pipeline_model || "caption-pipeline-v1"}.
+                        </p>
+                      </div>
+                      <div className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-xs text-[var(--ink-soft)]">
+                        Status: {selectedRun.status || "completed"}
+                      </div>
+                    </div>
+
+                    {selectedRun.image_url ? (
+                      <div className="mt-4 overflow-hidden rounded-[1.3rem] border border-[var(--line)]">
+                        <img src={selectedRun.image_url} alt="" className="h-52 w-full object-cover" />
+                      </div>
+                    ) : null}
+
+                    <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Request payload</p>
+                        <pre className="mt-2 max-h-[280px] overflow-auto rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] p-3 text-xs leading-6 text-[var(--ink-soft)] whitespace-pre-wrap">
+                          {stringifyJson(selectedRun.request_payload)}
+                        </pre>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Raw response</p>
+                        <pre className="mt-2 max-h-[280px] overflow-auto rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] p-3 text-xs leading-6 text-[var(--ink-soft)] whitespace-pre-wrap">
+                          {stringifyJson(selectedRun.raw_response)}
+                        </pre>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="rounded-[1.6rem] border border-[var(--line)] bg-[var(--surface-muted)] p-4 sm:p-5">
+                    <div className="flex items-center gap-3">
+                      <Sparkles className="h-5 w-5 text-[var(--brand)]" />
+                      <h3 className="text-2xl font-semibold">Generated captions</h3>
+                    </div>
+                    <div className="mt-4 space-y-3">
+                      {visibleCaptions.length === 0 ? (
+                        <p className="text-sm text-[var(--ink-soft)]">No caption rows were archived for this run.</p>
+                      ) : (
+                        visibleCaptions.map((caption) => (
+                          <article
+                            key={caption.id}
+                            className="rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-sm leading-6"
+                          >
+                            <span className="mr-2 text-xs uppercase tracking-[0.18em] text-[var(--ink-soft)]">
+                              #{caption.rank_index || "-"}
+                            </span>
+                            {caption.caption_text}
+                          </article>
+                        ))
+                      )}
+                    </div>
+                  </section>
+                </>
+              ) : (
+                <section className="rounded-[1.6rem] border border-[var(--line)] bg-[var(--surface-muted)] p-5 text-sm text-[var(--ink-soft)]">
+                  Choose a saved run to inspect its captions and payloads.
+                </section>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
+    );
+  }
+
   return (
     <section className="space-y-5">
       <div className="grid gap-4 md:grid-cols-3">
@@ -614,584 +1236,13 @@ export function FlavorStudio({ activeTab }: FlavorStudioProps) {
           </div>
         </aside>
 
-        {activeTab === "create-flavor" ? (
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_360px]">
-            <div className="space-y-5">
-              <section className="panel rounded-[2rem] p-5 sm:p-6">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.26em] text-[var(--ink-soft)]">Create Humor Flavor</p>
-                    <h2 className="mt-3 text-3xl font-semibold">{selectedFlavor ? "Edit active flavor" : "Author a new flavor"}</h2>
-                    <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--ink-soft)]">
-                      A humor flavor is an ordered set of steps that turns an image into a caption set. Build the chain
-                      here, then test it in the prompt-chain tool.
-                    </p>
-                  </div>
-                  {loadingFlavorData ? (
-                    <div className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-muted)] px-3 py-2 text-xs text-[var(--ink-soft)]">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      Loading flavor data
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="mt-6 grid gap-4 md:grid-cols-2">
-                  <label className="space-y-2">
-                    <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Flavor name</span>
-                    <input
-                      value={flavorDraft.name}
-                      onChange={(event) =>
-                        setFlavorDraft((current) => ({
-                          ...current,
-                          name: event.target.value,
-                          slug: current.slug || slugify(event.target.value),
-                        }))
-                      }
-                      placeholder="Observational chaos"
-                      className="w-full rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
-                    />
-                  </label>
-                  <label className="space-y-2">
-                    <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Slug</span>
-                    <input
-                      value={flavorDraft.slug}
-                      onChange={(event) => setFlavorDraft((current) => ({ ...current, slug: slugify(event.target.value) }))}
-                      placeholder="observational-chaos"
-                      className="w-full rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
-                    />
-                  </label>
-                  <label className="space-y-2 md:col-span-2">
-                    <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Description</span>
-                    <textarea
-                      value={flavorDraft.description}
-                      onChange={(event) => setFlavorDraft((current) => ({ ...current, description: event.target.value }))}
-                      placeholder="Short summary of what makes this humor flavor work."
-                      rows={3}
-                      className="w-full rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
-                    />
-                  </label>
-                  <label className="space-y-2 md:col-span-2">
-                    <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Internal notes</span>
-                    <textarea
-                      value={flavorDraft.notes}
-                      onChange={(event) => setFlavorDraft((current) => ({ ...current, notes: event.target.value }))}
-                      placeholder="Prompt-writing notes, style guardrails, or evaluation reminders."
-                      rows={4}
-                      className="w-full rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
-                    />
-                  </label>
-                  <label className="space-y-2">
-                    <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Status</span>
-                    <select
-                      value={flavorDraft.status}
-                      onChange={(event) => setFlavorDraft((current) => ({ ...current, status: event.target.value }))}
-                      className="w-full rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
-                    >
-                      <option value="draft">Draft</option>
-                      <option value="active">Active</option>
-                      <option value="archived">Archived</option>
-                    </select>
-                  </label>
-                </div>
-
-                <div className="mt-6 flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={() => void handleSaveFlavor()}
-                    disabled={savingFlavor}
-                    className="pill-button inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    <Save className="h-4 w-4" />
-                    {savingFlavor ? "Saving..." : selectedFlavor ? "Update flavor" : "Create flavor"}
-                  </button>
-                  {selectedFlavor ? (
-                    <button
-                      type="button"
-                      onClick={() => void handleDeleteFlavor()}
-                      disabled={savingFlavor}
-                      className="danger-button pill-button inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete flavor
-                    </button>
-                  ) : null}
-                </div>
-              </section>
-
-              <section className="panel rounded-[2rem] p-5 sm:p-6">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.26em] text-[var(--ink-soft)]">Flavor Steps</p>
-                    <h2 className="mt-3 text-3xl font-semibold">Build the ordered prompt chain</h2>
-                    <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--ink-soft)]">
-                      Create new steps, edit them, and move them up or down to set the exact order the humor flavor should follow.
-                    </p>
-                  </div>
-                  <div className="rounded-[1.2rem] border border-[var(--line)] bg-[var(--surface-muted)] px-3 py-2 text-xs text-[var(--ink-soft)]">
-                    {orderedSteps.length} step{orderedSteps.length === 1 ? "" : "s"}
-                  </div>
-                </div>
-
-                {selectedFlavor ? (
-                  <>
-                    <div className="mt-6 space-y-4">
-                      {orderedSteps.length === 0 ? (
-                        <p className="rounded-[1.3rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-4 text-sm text-[var(--ink-soft)]">
-                          No steps yet. Add the description step, the joke step, and the final caption-generation step to start.
-                        </p>
-                      ) : (
-                        orderedSteps.map((step, index) => (
-                          <article key={step.id} className="rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface-muted)] p-4">
-                            <div className="flex flex-wrap items-center justify-between gap-3">
-                              <div className="inline-flex items-center gap-3">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] text-sm font-semibold text-white">
-                                  {step.step_order}
-                                </div>
-                                <div>
-                                  <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Flavor step</p>
-                                  <p className="text-sm text-[var(--ink-soft)]">Reorder to define the prompt chain.</p>
-                                </div>
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                <button
-                                  type="button"
-                                  disabled={index === 0 || stepActionId === step.id}
-                                  onClick={() => void moveStep(step.id, -1)}
-                                  className="pill-button inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-xs font-medium text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                  <ChevronUp className="h-3.5 w-3.5" />
-                                  Move up
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={index === orderedSteps.length - 1 || stepActionId === step.id}
-                                  onClick={() => void moveStep(step.id, 1)}
-                                  className="pill-button inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-xs font-medium text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                  <ChevronDown className="h-3.5 w-3.5" />
-                                  Move down
-                                </button>
-                              </div>
-                            </div>
-
-                            <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
-                              <label className="space-y-2">
-                                <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Title</span>
-                                <input
-                                  value={step.title}
-                                  onChange={(event) =>
-                                    setSteps((current) =>
-                                      current.map((item) => (item.id === step.id ? { ...item, title: event.target.value } : item)),
-                                    )
-                                  }
-                                  className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
-                                />
-                              </label>
-                              <label className="space-y-2">
-                                <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Output label</span>
-                                <input
-                                  value={step.output_label || ""}
-                                  onChange={(event) =>
-                                    setSteps((current) =>
-                                      current.map((item) => (item.id === step.id ? { ...item, output_label: event.target.value } : item)),
-                                    )
-                                  }
-                                  placeholder="image_description"
-                                  className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
-                                />
-                              </label>
-                            </div>
-
-                            <label className="mt-4 block space-y-2">
-                              <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Instruction</span>
-                              <textarea
-                                value={step.instruction}
-                                onChange={(event) =>
-                                  setSteps((current) =>
-                                    current.map((item) => (item.id === step.id ? { ...item, instruction: event.target.value } : item)),
-                                  )
-                                }
-                                rows={4}
-                                className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
-                              />
-                            </label>
-
-                            <div className="mt-4 flex flex-wrap gap-3">
-                              <button
-                                type="button"
-                                onClick={() => void handleSaveStep(step)}
-                                disabled={stepActionId === step.id}
-                                className="pill-button inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
-                              >
-                                {stepActionId === step.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                                Save step
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => void handleDeleteStep(step.id)}
-                                disabled={stepActionId === step.id}
-                                className="danger-button pill-button inline-flex items-center gap-2 rounded-full px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                Delete step
-                              </button>
-                            </div>
-                          </article>
-                        ))
-                      )}
-                    </div>
-
-                    <div className="mt-6 rounded-[1.5rem] border border-dashed border-[var(--line)] bg-[var(--surface-muted)] p-4 sm:p-5">
-                      <div className="flex items-center gap-3">
-                        <Plus className="h-5 w-5 text-[var(--brand)]" />
-                        <div>
-                          <h3 className="text-xl font-semibold">Create new flavor step</h3>
-                          <p className="text-sm text-[var(--ink-soft)]">Add the next ordered instruction for this humor flavor.</p>
-                        </div>
-                      </div>
-                      <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
-                        <label className="space-y-2">
-                          <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Step title</span>
-                          <input
-                            value={newStepDraft.title}
-                            onChange={(event) => setNewStepDraft((current) => ({ ...current, title: event.target.value }))}
-                            placeholder="Describe the image"
-                            className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
-                          />
-                        </label>
-                        <label className="space-y-2">
-                          <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Output label</span>
-                          <input
-                            value={newStepDraft.output_label}
-                            onChange={(event) => setNewStepDraft((current) => ({ ...current, output_label: event.target.value }))}
-                            placeholder="funny_take"
-                            className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
-                          />
-                        </label>
-                      </div>
-                      <label className="mt-4 block space-y-2">
-                        <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Instruction</span>
-                        <textarea
-                          value={newStepDraft.instruction}
-                          onChange={(event) => setNewStepDraft((current) => ({ ...current, instruction: event.target.value }))}
-                          rows={4}
-                          placeholder="Take the output from step 1 and say something funny about it."
-                          className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => void handleCreateStep()}
-                        disabled={stepActionId === "new-step"}
-                        className="pill-button mt-4 inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
-                      >
-                        {stepActionId === "new-step" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                        Add step
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <p className="mt-6 rounded-[1.3rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-4 text-sm text-[var(--ink-soft)]">
-                    Create a flavor first, then you can add, edit, delete, and reorder its steps here.
-                  </p>
-                )}
-              </section>
-            </div>
-
-            <div className="space-y-5">
-              <section className="panel rounded-[2rem] p-5 sm:p-6">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] text-white">
-                    <FlaskConical className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.26em] text-[var(--ink-soft)]">Prompt Chain Preview</p>
-                    <h2 className="mt-2 text-2xl font-semibold">See the final ordered chain</h2>
-                  </div>
-                </div>
-                <pre className="mt-5 max-h-[360px] overflow-auto rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface-muted)] p-4 text-xs leading-6 text-[var(--ink-soft)] whitespace-pre-wrap">
-                  {promptChainPreview || "No steps yet. Add steps to preview the humor flavor prompt chain."}
-                </pre>
-              </section>
-
-              <section className="panel rounded-[2rem] p-5 sm:p-6">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-3))] text-white">
-                    <TestTube2 className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.26em] text-[var(--ink-soft)]">Prompt Chain Tool</p>
-                    <h2 className="mt-2 text-2xl font-semibold">Test a humor flavor with the REST API</h2>
-                    <p className="mt-2 text-sm leading-7 text-[var(--ink-soft)]">
-                      Run the active flavor against an image from your test set, a remote image URL, or a new upload.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-5 space-y-4">
-                  <label className="space-y-2">
-                    <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Image test set</span>
-                    <select
-                      value={selectedImageId}
-                      onChange={(event) => {
-                        setSelectedImageId(event.target.value);
-                        setUploadFile(null);
-                      }}
-                      className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
-                    >
-                      <option value="">Choose from images table</option>
-                      {images.map((image) => (
-                        <option key={image.id} value={image.id}>
-                          {image.id}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  {imageLibraryError ? (
-                    <p className="danger-panel rounded-[1.1rem] px-3 py-3 text-sm">
-                      Could not read the image test set: {imageLibraryError}
-                    </p>
-                  ) : null}
-
-                  {selectedImage ? (
-                    <div className="overflow-hidden rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface-muted)]">
-                      {getImageUrl(selectedImage) ? (
-                        <img src={getImageUrl(selectedImage)} alt="" className="h-44 w-full object-cover" />
-                      ) : (
-                        <div className="flex h-44 items-center justify-center text-sm text-[var(--ink-soft)]">No preview URL on this image row.</div>
-                      )}
-                      <div className="flex items-center gap-2 px-4 py-3 text-xs text-[var(--ink-soft)]">
-                        <FileImage className="h-4 w-4" />
-                        Selected image id: {selectedImage.id}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  <label className="space-y-2">
-                    <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Or paste image URL</span>
-                    <input
-                      value={manualImageUrl}
-                      onChange={(event) => {
-                        setManualImageUrl(event.target.value);
-                        if (event.target.value.trim()) {
-                          setSelectedImageId("");
-                          setUploadFile(null);
-                        }
-                      }}
-                      placeholder="https://..."
-                      className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
-                    />
-                  </label>
-
-                  <label className="space-y-2">
-                    <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Or upload image file</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0] ?? null;
-                        setUploadFile(file);
-                        if (file) {
-                          setSelectedImageId("");
-                          setManualImageUrl("");
-                        }
-                      }}
-                      className="block w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-sm"
-                    />
-                    {uploadFile ? <p className="text-xs text-[var(--ink-soft)]">Selected file: {uploadFile.name}</p> : null}
-                  </label>
-                </div>
-
-                {runError ? <p className="danger-panel mt-5 rounded-[1.2rem] px-4 py-3 text-sm">{runError}</p> : null}
-
-                <button
-                  type="button"
-                  onClick={() => void handleRunFlavor()}
-                  disabled={runningTest || !selectedFlavor}
-                  className="pill-button mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-3))] px-5 py-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {runningTest ? <Loader2 className="h-4 w-4 animate-spin" /> : <WandSparkles className="h-4 w-4" />}
-                  {runningTest ? "Testing flavor..." : "Generate captions with REST API"}
-                </button>
-
-                {latestRun ? (
-                  <div className="mt-5 rounded-[1.5rem] border border-[var(--line)] bg-[var(--surface-muted)] p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Latest result</p>
-                        <h3 className="mt-2 text-xl font-semibold">{latestRun.captions.length} caption{latestRun.captions.length === 1 ? "" : "s"} returned</h3>
-                      </div>
-                      <div className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-xs text-[var(--ink-soft)]">
-                        Model: {latestRun.modelTag}
-                      </div>
-                    </div>
-                    <div className="mt-4 space-y-3">
-                      {latestRun.captions.length === 0 ? (
-                        <p className="text-sm text-[var(--ink-soft)]">The API returned a response, but no caption strings were extracted.</p>
-                      ) : (
-                        latestRun.captions.map((caption, index) => (
-                          <div key={`${caption}-${index}`} className="rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-sm leading-6">
-                            <span className="mr-2 text-xs uppercase tracking-[0.18em] text-[var(--ink-soft)]">#{index + 1}</span>
-                            {caption}
-                          </div>
-                        ))
-                      )}
-                    </div>
-                    {latestRun.storageWarning ? (
-                      <p className="danger-panel mt-4 rounded-[1rem] px-3 py-3 text-sm">
-                        The test run succeeded, but saving the archive failed: {latestRun.storageWarning}
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
-              </section>
-            </div>
-          </div>
-        ) : (
-          <section className="panel rounded-[2rem] p-5 sm:p-6">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-xs uppercase tracking-[0.26em] text-[var(--ink-soft)]">Caption Archive</p>
-                <h2 className="mt-3 text-3xl font-semibold">Read captions produced by a humor flavor</h2>
-                <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--ink-soft)]">
-                  Review saved prompt-chain runs and inspect the exact captions a specific flavor produced.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => void loadFlavorData(selectedFlavorId)}
-                disabled={!selectedFlavorId || loadingFlavorData}
-                className="pill-button inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-3 text-sm font-medium text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <RefreshCw className={`h-4 w-4 ${loadingFlavorData ? "animate-spin" : ""}`} />
-                Refresh archive
-              </button>
-            </div>
-
-            {!selectedFlavor ? (
-              <p className="mt-6 rounded-[1.3rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-4 text-sm text-[var(--ink-soft)]">
-                Select a humor flavor from the directory to read its generated captions.
-              </p>
-            ) : (
-              <div className="mt-6 grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
-                <aside className="space-y-3">
-                  {runs.length === 0 ? (
-                    <p className="rounded-[1.3rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-4 text-sm text-[var(--ink-soft)]">
-                      No saved runs yet for {selectedFlavor.name}. Generate captions in the create tab to build an archive.
-                    </p>
-                  ) : (
-                    runs.map((run) => {
-                      const active = run.id === (selectedRun?.id || "");
-                      const runCaptions = captions.filter((item) => item.humor_flavor_run_id === run.id);
-                      return (
-                        <button
-                          key={run.id}
-                          type="button"
-                          onClick={() => setSelectedRunId(run.id)}
-                          className={`w-full rounded-[1.4rem] border px-4 py-4 text-left transition ${
-                            active
-                              ? "border-transparent bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] text-white shadow-panel"
-                              : "border-[var(--line)] bg-[var(--surface-muted)] text-[var(--ink)] hover:bg-[var(--surface-strong)]"
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="text-sm font-semibold">{formatTimestamp(run.created_at)}</p>
-                              <p className={`mt-1 text-xs ${active ? "text-white/80" : "text-[var(--ink-soft)]"}`}>
-                                {run.pipeline_model || "caption-pipeline-v1"}
-                              </p>
-                            </div>
-                            <span
-                              className={`rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.18em] ${
-                                active ? "bg-white/15 text-white" : "bg-[var(--surface-strong)] text-[var(--ink-soft)]"
-                              }`}
-                            >
-                              {runCaptions.length} caption{runCaptions.length === 1 ? "" : "s"}
-                            </span>
-                          </div>
-                          <p className={`mt-3 text-xs ${active ? "text-white/80" : "text-[var(--ink-soft)]"}`}>
-                            Image id: {run.image_id || "not saved"}
-                          </p>
-                        </button>
-                      );
-                    })
-                  )}
-                </aside>
-
-                <div className="space-y-5">
-                  {selectedRun ? (
-                    <>
-                      <section className="rounded-[1.6rem] border border-[var(--line)] bg-[var(--surface-muted)] p-4 sm:p-5">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div>
-                            <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Run summary</p>
-                            <h3 className="mt-2 text-2xl font-semibold">{selectedFlavor.name}</h3>
-                            <p className="mt-2 text-sm text-[var(--ink-soft)]">
-                              Created {formatTimestamp(selectedRun.created_at)} using {selectedRun.pipeline_model || "caption-pipeline-v1"}.
-                            </p>
-                          </div>
-                          <div className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-xs text-[var(--ink-soft)]">
-                            Status: {selectedRun.status || "completed"}
-                          </div>
-                        </div>
-
-                        {selectedRun.image_url ? (
-                          <div className="mt-4 overflow-hidden rounded-[1.3rem] border border-[var(--line)]">
-                            <img src={selectedRun.image_url} alt="" className="h-52 w-full object-cover" />
-                          </div>
-                        ) : null}
-
-                        <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                          <div>
-                            <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Request payload</p>
-                            <pre className="mt-2 max-h-[280px] overflow-auto rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] p-3 text-xs leading-6 text-[var(--ink-soft)] whitespace-pre-wrap">
-                              {stringifyJson(selectedRun.request_payload)}
-                            </pre>
-                          </div>
-                          <div>
-                            <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Raw response</p>
-                            <pre className="mt-2 max-h-[280px] overflow-auto rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] p-3 text-xs leading-6 text-[var(--ink-soft)] whitespace-pre-wrap">
-                              {stringifyJson(selectedRun.raw_response)}
-                            </pre>
-                          </div>
-                        </div>
-                      </section>
-
-                      <section className="rounded-[1.6rem] border border-[var(--line)] bg-[var(--surface-muted)] p-4 sm:p-5">
-                        <div className="flex items-center gap-3">
-                          <Sparkles className="h-5 w-5 text-[var(--brand)]" />
-                          <h3 className="text-2xl font-semibold">Generated captions</h3>
-                        </div>
-                        <div className="mt-4 space-y-3">
-                          {visibleCaptions.length === 0 ? (
-                            <p className="text-sm text-[var(--ink-soft)]">No caption rows were archived for this run.</p>
-                          ) : (
-                            visibleCaptions.map((caption) => (
-                              <article
-                                key={caption.id}
-                                className="rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-sm leading-6"
-                              >
-                                <span className="mr-2 text-xs uppercase tracking-[0.18em] text-[var(--ink-soft)]">
-                                  #{caption.rank_index || "-"}
-                                </span>
-                                {caption.caption_text}
-                              </article>
-                            ))
-                          )}
-                        </div>
-                      </section>
-                    </>
-                  ) : (
-                    <section className="rounded-[1.6rem] border border-[var(--line)] bg-[var(--surface-muted)] p-5 text-sm text-[var(--ink-soft)]">
-                      Choose a saved run to inspect its captions and payloads.
-                    </section>
-                  )}
-                </div>
-              </div>
-            )}
-          </section>
-        )}
+        {activeTab === "flavor"
+          ? renderFlavorEditor()
+          : activeTab === "steps"
+            ? renderStepsBuilder()
+            : activeTab === "tester"
+              ? renderTester()
+              : renderArchive()}
       </div>
     </section>
   );
