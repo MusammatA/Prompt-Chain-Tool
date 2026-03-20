@@ -162,6 +162,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
   const [selectedFlavorId, setSelectedFlavorId] = useState("");
   const [selectedRunId, setSelectedRunId] = useState("");
   const [isCreatingFlavor, setIsCreatingFlavor] = useState(false);
+  const [selectedStepId, setSelectedStepId] = useState("");
   const [flavorDraft, setFlavorDraft] = useState<FlavorDraft>(EMPTY_FLAVOR_DRAFT);
   const [newStepDraft, setNewStepDraft] = useState<StepDraft>(EMPTY_STEP_DRAFT);
   const [globalError, setGlobalError] = useState("");
@@ -192,6 +193,11 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
   const promptChainPreview = orderedSteps
     .map((step) => formatStepPreview(step))
     .join("\n\n");
+  const selectedStepIndex = Math.max(
+    0,
+    orderedSteps.findIndex((step) => step.id === selectedStepId),
+  );
+  const selectedStep = orderedSteps[selectedStepIndex] ?? null;
 
   async function loadBaseData(preferredFlavorId?: string) {
     setBootstrapping(true);
@@ -239,6 +245,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
       setRuns([]);
       setCaptions([]);
       setSelectedRunId("");
+      setSelectedStepId("");
       return;
     }
 
@@ -256,12 +263,16 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
       setRuns(runData);
       setCaptions(captionData);
       setSelectedRunId(runData[0]?.id || "");
+      setSelectedStepId((current) =>
+        stepsData.some((step) => step.id === current) ? current : stepsData[0]?.id || "",
+      );
     } catch (error) {
       setGlobalError(getErrorMessage(error));
       setSteps([]);
       setRuns([]);
       setCaptions([]);
       setSelectedRunId("");
+      setSelectedStepId("");
     } finally {
       setLoadingFlavorData(false);
     }
@@ -296,13 +307,14 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
   function beginCreateFlavor() {
     setIsCreatingFlavor(true);
     setSelectedFlavorId("");
-    setFlavorDraft(defaultNewFlavorDraft());
-    setSteps([]);
-    setRuns([]);
-    setCaptions([]);
-    setSelectedRunId("");
-    setFlashMessage("");
-    setGlobalError("");
+      setFlavorDraft(defaultNewFlavorDraft());
+      setSteps([]);
+      setRuns([]);
+      setCaptions([]);
+      setSelectedRunId("");
+      setSelectedStepId("");
+      setFlashMessage("");
+      setGlobalError("");
     setRunError("");
     setLatestRun(null);
     onTabChange("flavor");
@@ -416,6 +428,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
         step_order: orderedSteps.length + 1,
       });
       setSteps((current) => [...current, created].sort((a, b) => a.step_order - b.step_order));
+      setSelectedStepId(created.id);
       setNewStepDraft({ ...EMPTY_STEP_DRAFT });
       setFlashMessage("Saved the new step. Add more, reorder them, then continue to the tester.");
     } catch (error) {
@@ -444,6 +457,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
         llm_temperature: step.llm_temperature ?? undefined,
       });
       setSteps((current) => current.map((item) => (item.id === updated.id ? updated : item)).sort((a, b) => a.step_order - b.step_order));
+      setSelectedStepId(updated.id);
       setFlashMessage(`Saved step ${updated.step_order}.`);
     } catch (error) {
       setGlobalError(getErrorMessage(error));
@@ -456,6 +470,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
     const step = steps.find((item) => item.id === stepId);
     if (!step) return;
     if (!window.confirm(`Delete step ${step.step_order}: ${step.title}?`)) return;
+    const deletedIndex = orderedSteps.findIndex((item) => item.id === stepId);
 
     setStepActionId(stepId);
     setGlobalError("");
@@ -468,6 +483,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
         .sort((a, b) => a.step_order - b.step_order)
         .map((item, index) => ({ ...item, step_order: index + 1 }));
       setSteps(remaining);
+      setSelectedStepId(remaining[Math.min(deletedIndex, remaining.length - 1)]?.id || "");
       await reorderHumorFlavorSteps(
         selectedFlavorId,
         remaining.map((item) => item.id),
@@ -491,6 +507,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
     reordered.splice(targetIndex, 0, moved);
     const normalized = reordered.map((item, orderIndex) => ({ ...item, step_order: orderIndex + 1 }));
     setSteps(normalized);
+    setSelectedStepId(stepId);
     setStepActionId(stepId);
     setGlobalError("");
     setFlashMessage("");
@@ -523,6 +540,160 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
 
     setGlobalError("");
     onTabChange("tester");
+  }
+
+  function goToAdjacentStep(direction: -1 | 1) {
+    const targetStep = orderedSteps[selectedStepIndex + direction];
+    if (!targetStep) return;
+    setSelectedStepId(targetStep.id);
+  }
+
+  function renderStepEditor(step: HumorFlavorStep, index: number) {
+    return (
+      <article className="rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface-muted)] p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="inline-flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] text-sm font-semibold text-white">
+              {step.step_order}
+            </div>
+            <div>
+              <p className="text-sm font-medium text-[var(--ink)]">{step.title}</p>
+              <p className="text-xs text-[var(--ink-soft)]">
+                Step {index + 1} of {orderedSteps.length}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={index === 0}
+              onClick={() => goToAdjacentStep(-1)}
+              className="pill-button inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-xs font-medium text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Previous
+            </button>
+            <button
+              type="button"
+              disabled={index === orderedSteps.length - 1}
+              onClick={() => goToAdjacentStep(1)}
+              className="pill-button inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-xs font-medium text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Next
+              <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              disabled={index === 0 || stepActionId === step.id}
+              onClick={() => void moveStep(step.id, -1)}
+              className="pill-button inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-xs font-medium text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <ChevronUp className="h-3.5 w-3.5" />
+              Move up
+            </button>
+            <button
+              type="button"
+              disabled={index === orderedSteps.length - 1 || stepActionId === step.id}
+              onClick={() => void moveStep(step.id, 1)}
+              className="pill-button inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-xs font-medium text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <ChevronDown className="h-3.5 w-3.5" />
+              Move down
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
+          <label className="space-y-2">
+            <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Title</span>
+            <input
+              value={step.title}
+              onChange={(event) =>
+                setSteps((current) =>
+                  current.map((item) => (item.id === step.id ? { ...item, title: event.target.value } : item)),
+                )
+              }
+              className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
+            />
+          </label>
+          {usesLegacyFlavorSchema ? (
+            <div className="rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-xs leading-6 text-[var(--ink-soft)]">
+              Preview only
+            </div>
+          ) : (
+            <label className="space-y-2">
+              <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Output label</span>
+              <input
+                value={step.output_label || ""}
+                onChange={(event) =>
+                  setSteps((current) =>
+                    current.map((item) => (item.id === step.id ? { ...item, output_label: event.target.value } : item)),
+                  )
+                }
+                placeholder="image_description"
+                className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
+              />
+            </label>
+          )}
+        </div>
+
+        {usesLegacyFlavorSchema ? (
+          <label className="mt-4 block space-y-2">
+            <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">System prompt</span>
+            <textarea
+              value={step.system_prompt || ""}
+              onChange={(event) =>
+                setSteps((current) =>
+                  current.map((item) =>
+                    item.id === step.id ? { ...item, system_prompt: event.target.value } : item,
+                  ),
+                )
+              }
+              rows={4}
+              placeholder="Optional"
+              className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
+            />
+          </label>
+        ) : null}
+
+        <label className="mt-4 block space-y-2">
+          <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">
+            {usesLegacyFlavorSchema ? "User prompt" : "Instruction"}
+          </span>
+          <textarea
+            value={step.instruction}
+            onChange={(event) =>
+              setSteps((current) =>
+                current.map((item) => (item.id === step.id ? { ...item, instruction: event.target.value } : item)),
+              )
+            }
+            rows={4}
+            className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
+          />
+        </label>
+
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => void handleSaveStep(step)}
+            disabled={stepActionId === step.id}
+            className="pill-button inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {stepActionId === step.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Save step
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleDeleteStep(step.id)}
+            disabled={stepActionId === step.id}
+            className="danger-button pill-button inline-flex items-center gap-2 rounded-full px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete step
+          </button>
+        </div>
+      </article>
+    );
   }
 
   async function handleRunFlavor() {
@@ -847,134 +1018,39 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
           </div>
 
           <div className="mt-6 space-y-4">
-            {orderedSteps.length === 0 ? (
+            {selectedStep ? (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.2rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-sm">
+                  <span className="text-[var(--ink-soft)]">
+                    {orderedSteps.length} step{orderedSteps.length === 1 ? "" : "s"}
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {orderedSteps.map((step, index) => {
+                      const active = step.id === selectedStep.id;
+                      return (
+                        <button
+                          key={step.id}
+                          type="button"
+                          onClick={() => setSelectedStepId(step.id)}
+                          className={`flex h-9 w-9 items-center justify-center rounded-full border text-xs font-semibold transition ${
+                            active
+                              ? "border-transparent bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] text-white"
+                              : "border-[var(--line)] bg-[var(--surface-muted)] text-[var(--ink)] hover:bg-[var(--surface-strong)]"
+                          }`}
+                        >
+                          {index + 1}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                {renderStepEditor(selectedStep, selectedStepIndex)}
+              </>
+            ) : orderedSteps.length === 0 ? (
               <p className="rounded-[1.3rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-4 text-sm text-[var(--ink-soft)]">
                 No steps yet.
               </p>
-            ) : (
-              orderedSteps.map((step, index) => (
-                <article key={step.id} className="rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface-muted)] p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="inline-flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] text-sm font-semibold text-white">
-                        {step.step_order}
-                      </div>
-                      <p className="text-sm font-medium text-[var(--ink-soft)]">{step.title}</p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        disabled={index === 0 || stepActionId === step.id}
-                        onClick={() => void moveStep(step.id, -1)}
-                        className="pill-button inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-xs font-medium text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <ChevronUp className="h-3.5 w-3.5" />
-                        Move up
-                      </button>
-                      <button
-                        type="button"
-                        disabled={index === orderedSteps.length - 1 || stepActionId === step.id}
-                        onClick={() => void moveStep(step.id, 1)}
-                        className="pill-button inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-xs font-medium text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <ChevronDown className="h-3.5 w-3.5" />
-                        Move down
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
-                    <label className="space-y-2">
-                      <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Title</span>
-                      <input
-                        value={step.title}
-                        onChange={(event) =>
-                          setSteps((current) =>
-                            current.map((item) => (item.id === step.id ? { ...item, title: event.target.value } : item)),
-                          )
-                        }
-                        className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
-                      />
-                    </label>
-                    {usesLegacyFlavorSchema ? (
-                      <div className="rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-xs leading-6 text-[var(--ink-soft)]">
-                        Preview only
-                      </div>
-                    ) : (
-                      <label className="space-y-2">
-                        <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Output label</span>
-                        <input
-                          value={step.output_label || ""}
-                          onChange={(event) =>
-                            setSteps((current) =>
-                              current.map((item) => (item.id === step.id ? { ...item, output_label: event.target.value } : item)),
-                            )
-                          }
-                          placeholder="image_description"
-                          className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
-                        />
-                      </label>
-                    )}
-                  </div>
-
-                  {usesLegacyFlavorSchema ? (
-                    <label className="mt-4 block space-y-2">
-                      <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">System prompt</span>
-                      <textarea
-                        value={step.system_prompt || ""}
-                        onChange={(event) =>
-                          setSteps((current) =>
-                            current.map((item) =>
-                              item.id === step.id ? { ...item, system_prompt: event.target.value } : item,
-                            ),
-                          )
-                        }
-                        rows={4}
-                        placeholder="Optional"
-                        className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
-                      />
-                    </label>
-                  ) : null}
-
-                  <label className="mt-4 block space-y-2">
-                    <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">
-                      {usesLegacyFlavorSchema ? "User prompt" : "Instruction"}
-                    </span>
-                    <textarea
-                      value={step.instruction}
-                      onChange={(event) =>
-                        setSteps((current) =>
-                          current.map((item) => (item.id === step.id ? { ...item, instruction: event.target.value } : item)),
-                        )
-                      }
-                      rows={4}
-                      className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
-                    />
-                  </label>
-
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      onClick={() => void handleSaveStep(step)}
-                      disabled={stepActionId === step.id}
-                      className="pill-button inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
-                    >
-                      {stepActionId === step.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                      Save step
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleDeleteStep(step.id)}
-                      disabled={stepActionId === step.id}
-                      className="danger-button pill-button inline-flex items-center gap-2 rounded-full px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete step
-                    </button>
-                  </div>
-                </article>
-              ))
-            )}
+            ) : null}
           </div>
 
           <div className="mt-6 rounded-[1.4rem] border border-dashed border-[var(--line)] bg-[var(--surface-muted)] p-4 sm:p-5">

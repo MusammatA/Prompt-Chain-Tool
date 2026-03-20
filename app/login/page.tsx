@@ -129,7 +129,7 @@ export default function LoginPage() {
       <div className="hero-grid" aria-hidden />
 
       <section className="relative mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-5xl items-center justify-center">
-        <div className="grid w-full gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+        <div className="grid w-full gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <article className="panel rounded-[1.75rem] p-8 sm:p-10">
             <div className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-2 text-xs uppercase tracking-[0.28em] text-[var(--ink-soft)]">
               Humor Studio
@@ -137,34 +137,12 @@ export default function LoginPage() {
             <h1 className="mt-6 max-w-2xl text-5xl font-semibold leading-[0.92] text-[var(--ink)] sm:text-6xl">
               Build humor flavors.
             </h1>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <span className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-2 text-sm text-[var(--ink-soft)]">
-                Create
-              </span>
-              <span className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-2 text-sm text-[var(--ink-soft)]">
-                Test
-              </span>
-              <span className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-2 text-sm text-[var(--ink-soft)]">
-                Archive
-              </span>
-              <span className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-2 text-sm text-[var(--ink-soft)]">
-                Admin only
-              </span>
-            </div>
           </article>
 
           <aside className="panel-strong rounded-[1.75rem] p-8 sm:p-10">
             <div className="rounded-[1.35rem] border border-[var(--line)] bg-[var(--surface-muted)] p-5">
               <div className="text-xs uppercase tracking-[0.3em] text-[var(--ink-soft)]">Admin Login</div>
               <h2 className="mt-3 text-3xl font-semibold">Google</h2>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <span className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-1 text-xs text-[var(--ink-soft)]">
-                  superadmin
-                </span>
-                <span className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-1 text-xs text-[var(--ink-soft)]">
-                  matrix_admin
-                </span>
-              </div>
             </div>
 
             {checkingSession ? (
