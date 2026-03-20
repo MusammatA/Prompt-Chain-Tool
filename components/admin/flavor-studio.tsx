@@ -3,10 +3,8 @@
 import {
   ArrowLeft,
   ArrowRight,
-  CheckCircle2,
   ChevronDown,
   ChevronUp,
-  FileImage,
   Loader2,
   Plus,
   RefreshCw,
@@ -85,11 +83,11 @@ const EMPTY_STEP_DRAFT: StepDraft = {
   output_label: "",
 };
 
-const WORKFLOW_STEPS: Array<{ id: WorkflowTab; title: string; hint: string }> = [
-  { id: "flavor", title: "Flavor", hint: "Save the flavor basics first." },
-  { id: "steps", title: "Steps", hint: "Write and order the prompt steps." },
-  { id: "tester", title: "Tester", hint: "Run the flavor against an image." },
-  { id: "archive", title: "Archive", hint: "Review saved caption batches." },
+const WORKFLOW_STEPS: Array<{ id: WorkflowTab; title: string }> = [
+  { id: "flavor", title: "Flavor" },
+  { id: "steps", title: "Steps" },
+  { id: "tester", title: "Test" },
+  { id: "archive", title: "Archive" },
 ];
 
 function slugify(value: string) {
@@ -610,37 +608,14 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
     }
   }
 
-  function canEnterTab(tab: WorkflowTab) {
-    if (tab === "flavor") return true;
-    if (tab === "steps") return Boolean(selectedFlavorId);
-    if (tab === "tester") return Boolean(selectedFlavorId && orderedSteps.length > 0);
-    return Boolean(selectedFlavorId);
-  }
-
-  function handleWorkflowStepClick(tab: WorkflowTab) {
-    if (!canEnterTab(tab)) {
-      if (tab === "steps") {
-        setGlobalError("Save the flavor basics before moving to the next screen.");
-      } else if (tab === "tester") {
-        setGlobalError("Add and order the flavor steps before opening the tester.");
-      } else {
-        setGlobalError("Save and test a flavor before opening the archive.");
-      }
-      return;
-    }
-
-    setGlobalError("");
-    onTabChange(tab);
-  }
-
   function renderSidebar() {
     return (
-      <aside className="space-y-5">
-        <section className="panel rounded-[2rem] p-5">
+      <aside>
+        <section className="panel rounded-[1.6rem] p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs uppercase tracking-[0.26em] text-[var(--ink-soft)]">Flavor Directory</p>
-              <h2 className="mt-3 text-2xl font-semibold">Pick your active flavor</h2>
+              <p className="text-xs uppercase tracking-[0.24em] text-[var(--ink-soft)]">Flavors</p>
+              <h2 className="mt-2 text-xl font-semibold">Choose one</h2>
             </div>
             <button
               type="button"
@@ -655,18 +630,18 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
           <button
             type="button"
             onClick={beginCreateFlavor}
-            className="pill-button mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] px-4 py-3 text-sm font-semibold text-white"
+            className="pill-button mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] px-4 py-3 text-sm font-semibold text-white"
           >
             <Plus className="h-4 w-4" />
             New flavor
           </button>
 
-          <div className="mt-5 rounded-[1.5rem] border border-[var(--line)] bg-[var(--surface-muted)] p-3">
+          <div className="mt-4 rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface-muted)] p-3">
             <div className="flex items-center justify-between gap-3 px-1 pb-3">
-              <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">
+              <p className="text-xs uppercase tracking-[0.18em] text-[var(--ink-soft)]">
                 {flavors.length} flavor{flavors.length === 1 ? "" : "s"}
               </p>
-              <p className="text-[11px] text-[var(--ink-soft)]">Scroll to browse all</p>
+              <p className="text-[11px] text-[var(--ink-soft)]">Scroll</p>
             </div>
             <div className="max-h-[32rem] space-y-3 overflow-y-auto pr-1">
             {bootstrapping ? (
@@ -675,7 +650,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
               </p>
             ) : flavors.length === 0 ? (
               <p className="rounded-[1.3rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-4 text-sm text-[var(--ink-soft)]">
-                No saved flavors yet. Start by filling out the first screen.
+                No flavors yet.
               </p>
             ) : (
               flavors.map((flavor) => {
@@ -693,7 +668,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-base font-semibold">{flavor.name}</p>
+                        <p className="text-sm font-semibold">{flavor.name}</p>
                         <p className={`mt-1 text-xs ${active ? "text-white/80" : "text-[var(--ink-soft)]"}`}>
                           {flavor.slug || "no-slug"}
                         </p>
@@ -706,7 +681,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                         {flavor.status || "draft"}
                       </span>
                     </div>
-                    <p className={`mt-3 text-sm leading-6 ${active ? "text-white/90" : "text-[var(--ink-soft)]"}`}>
+                    <p className={`mt-2 text-sm leading-6 ${active ? "text-white/90" : "text-[var(--ink-soft)]"}`}>
                       {flavor.description || "No description yet."}
                     </p>
                   </button>
@@ -716,71 +691,25 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
             </div>
           </div>
         </section>
-
-        <section className="panel rounded-[2rem] p-5">
-          <p className="text-xs uppercase tracking-[0.26em] text-[var(--ink-soft)]">Wizard Progress</p>
-          <div className="mt-4 space-y-3">
-            {WORKFLOW_STEPS.map((step, index) => {
-              const active = step.id === activeTab;
-              const complete =
-                step.id === "flavor"
-                  ? Boolean(selectedFlavorId)
-                  : step.id === "steps"
-                    ? orderedSteps.length > 0
-                    : step.id === "tester"
-                      ? runs.length > 0 || latestRun !== null
-                      : Boolean(selectedFlavorId);
-
-              return (
-                <button
-                  key={step.id}
-                  type="button"
-                  onClick={() => handleWorkflowStepClick(step.id)}
-                  className={`w-full rounded-[1.4rem] border px-4 py-4 text-left transition ${
-                    active
-                      ? "border-transparent bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] text-white shadow-panel"
-                      : "border-[var(--line)] bg-[var(--surface-muted)] text-[var(--ink)] hover:bg-[var(--surface-strong)]"
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div
-                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
-                        active
-                          ? "bg-white/15 text-white"
-                          : complete
-                            ? "bg-[var(--brand)] text-white"
-                            : "bg-[var(--surface-strong)] text-[var(--ink-soft)]"
-                      }`}
-                    >
-                      {complete && !active ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold">{step.title}</p>
-                      <p className={`mt-1 text-xs leading-5 ${active ? "text-white/80" : "text-[var(--ink-soft)]"}`}>{step.hint}</p>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </section>
       </aside>
     );
   }
 
-  function renderStageHeader(title: string, description: string) {
+  function renderStageHeader(title: string, description?: string) {
     return (
-      <section className="panel rounded-[2rem] p-5 sm:p-6">
+      <section className="panel rounded-[1.6rem] p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.26em] text-[var(--ink-soft)]">Step {activeStepIndex + 1} of {WORKFLOW_STEPS.length}</p>
-            <h2 className="mt-3 text-3xl font-semibold">{title}</h2>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--ink-soft)]">{description}</p>
+            <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">
+              {WORKFLOW_STEPS[activeStepIndex]?.title || title}
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold">{title}</h2>
+            {description ? <p className="mt-2 text-sm text-[var(--ink-soft)]">{description}</p> : null}
           </div>
           {loadingFlavorData ? (
             <div className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-muted)] px-3 py-2 text-xs text-[var(--ink-soft)]">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Loading flavor data
+              Loading
             </div>
           ) : null}
         </div>
@@ -792,11 +721,11 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
     return (
       <div className="space-y-5">
         {renderStageHeader(
-          "Save the humor flavor basics",
-          "Fill out the flavor identity first. Once this is saved, the wizard automatically moves to the step-building screen.",
+          "Flavor",
+          "Name it and save.",
         )}
 
-        <section className="panel rounded-[2rem] p-5 sm:p-6">
+        <section className="panel rounded-[1.6rem] p-4 sm:p-5">
           <div className="grid gap-4 md:grid-cols-2">
             <label className="space-y-2">
               <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Flavor name</span>
@@ -827,18 +756,18 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
               <textarea
                 value={flavorDraft.description}
                 onChange={(event) => setFlavorDraft((current) => ({ ...current, description: event.target.value }))}
-                placeholder="What kind of humor should this flavor produce?"
+                placeholder="Short description"
                 rows={3}
                 className="w-full rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
               />
             </label>
             <label className="space-y-2 md:col-span-2">
-              <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Internal notes</span>
+              <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Notes</span>
               <textarea
                 value={flavorDraft.notes}
                 onChange={(event) => setFlavorDraft((current) => ({ ...current, notes: event.target.value }))}
-                placeholder="Prompt-writing reminders, style notes, or guardrails."
-                rows={4}
+                placeholder="Optional"
+                rows={3}
                 className="w-full rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
               />
             </label>
@@ -864,7 +793,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
               className="pill-button inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
             >
               {savingFlavor ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {savingFlavor ? "Saving..." : selectedFlavorId && !isCreatingFlavor ? "Save and continue to steps" : "Create flavor and continue"}
+              {savingFlavor ? "Saving..." : selectedFlavorId && !isCreatingFlavor ? "Save" : "Create"}
             </button>
             {selectedFlavor ? (
               <button
@@ -887,15 +816,15 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
     if (!selectedFlavorId) {
       return (
         <div className="space-y-5">
-          {renderStageHeader("Save the flavor first", "The wizard needs the flavor record before it can attach ordered steps.")}
-          <section className="panel rounded-[2rem] p-6">
+          {renderStageHeader("Save a flavor first")}
+          <section className="panel rounded-[1.6rem] p-5">
             <button
               type="button"
               onClick={() => onTabChange("flavor")}
               className="pill-button inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] px-5 py-3 text-sm font-semibold text-white"
             >
               <ArrowLeft className="h-4 w-4" />
-              Go to flavor details
+              Back
             </button>
           </section>
         </div>
@@ -905,28 +834,22 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
     return (
       <div className="space-y-5">
         {renderStageHeader(
-          "Build the ordered steps",
-          usesLegacyFlavorSchema
-            ? "Your live Supabase project stores steps as prompt records, so this screen maps each step to a title, an optional system prompt, and a user prompt."
-            : "Add every instruction that belongs in this humor flavor. You can reorder, edit, and delete steps here before moving on.",
+          "Steps",
+          usesLegacyFlavorSchema ? "Edit prompts." : "Add and reorder steps.",
         )}
 
-        <section className="panel rounded-[2rem] p-5 sm:p-6">
-          <div className="rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-4">
-            <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Active flavor</p>
-            <h3 className="mt-2 text-xl font-semibold">{selectedFlavor?.name}</h3>
-            <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{selectedFlavor?.description || "No description yet."}</p>
+        <section className="panel rounded-[1.6rem] p-4 sm:p-5">
+          <div className="rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-3">
+            <h3 className="text-lg font-semibold">{selectedFlavor?.name}</h3>
             {usesLegacyFlavorSchema ? (
-              <p className="mt-3 text-xs leading-5 text-[var(--ink-soft)]">
-                Legacy schema detected: this project saves step prompts to the closest existing fields in `humor_flavor_steps`.
-              </p>
+              <p className="mt-1 text-xs text-[var(--ink-soft)]">Legacy prompt mode</p>
             ) : null}
           </div>
 
           <div className="mt-6 space-y-4">
             {orderedSteps.length === 0 ? (
               <p className="rounded-[1.3rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-4 text-sm text-[var(--ink-soft)]">
-                No steps yet. Add the description step, the joke step, and the final caption-generation step to start.
+                No steps yet.
               </p>
             ) : (
               orderedSteps.map((step, index) => (
@@ -936,10 +859,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] text-sm font-semibold text-white">
                         {step.step_order}
                       </div>
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Step in chain</p>
-                        <p className="text-sm text-[var(--ink-soft)]">Move steps up or down to control the prompt order.</p>
-                      </div>
+                      <p className="text-sm font-medium text-[var(--ink-soft)]">{step.title}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button
@@ -978,7 +898,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                     </label>
                     {usesLegacyFlavorSchema ? (
                       <div className="rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-xs leading-6 text-[var(--ink-soft)]">
-                        Output labels are preview-only in the rebuilt schema and are not stored in this legacy Supabase step table.
+                        Preview only
                       </div>
                     ) : (
                       <label className="space-y-2">
@@ -1010,7 +930,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                           )
                         }
                         rows={4}
-                        placeholder="Optional system behavior for this step."
+                        placeholder="Optional"
                         className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
                       />
                     </label>
@@ -1057,13 +977,10 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
             )}
           </div>
 
-          <div className="mt-6 rounded-[1.5rem] border border-dashed border-[var(--line)] bg-[var(--surface-muted)] p-4 sm:p-5">
+          <div className="mt-6 rounded-[1.4rem] border border-dashed border-[var(--line)] bg-[var(--surface-muted)] p-4 sm:p-5">
             <div className="flex items-center gap-3">
               <Plus className="h-5 w-5 text-[var(--brand)]" />
-              <div>
-                <h3 className="text-xl font-semibold">Add a new step</h3>
-                <p className="text-sm text-[var(--ink-soft)]">Create the next instruction for this flavor.</p>
-              </div>
+              <h3 className="text-lg font-semibold">New step</h3>
             </div>
             <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
               <label className="space-y-2">
@@ -1077,7 +994,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
               </label>
               {usesLegacyFlavorSchema ? (
                 <div className="rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-xs leading-6 text-[var(--ink-soft)]">
-                  New steps save to the legacy prompt-step schema using sensible defaults for input type, output type, and model.
+                  Uses legacy defaults
                 </div>
               ) : (
                 <label className="space-y-2">
@@ -1098,7 +1015,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                   value={newStepDraft.system_prompt}
                   onChange={(event) => setNewStepDraft((current) => ({ ...current, system_prompt: event.target.value }))}
                   rows={4}
-                  placeholder="Optional system behavior for this step."
+                  placeholder="Optional"
                   className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
                 />
               </label>
@@ -1133,7 +1050,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
               className="pill-button inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-muted)] px-5 py-3 text-sm font-semibold text-[var(--ink)] hover:bg-[var(--surface-strong)]"
             >
               <ArrowLeft className="h-4 w-4" />
-              Back to flavor
+              Back
             </button>
             <button
               type="button"
@@ -1141,7 +1058,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
               disabled={orderedSteps.length === 0}
               className="pill-button inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-3))] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
             >
-              Continue to tester
+              Continue
               <ArrowRight className="h-4 w-4" />
             </button>
           </div>
@@ -1154,15 +1071,15 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
     if (!selectedFlavorId || orderedSteps.length === 0) {
       return (
         <div className="space-y-5">
-          {renderStageHeader("Build the chain before testing", "The tester only unlocks after the flavor exists and has at least one ordered step.")}
-          <section className="panel rounded-[2rem] p-6">
+          {renderStageHeader("Add steps first")}
+          <section className="panel rounded-[1.6rem] p-5">
             <button
               type="button"
               onClick={() => onTabChange(selectedFlavorId ? "steps" : "flavor")}
               className="pill-button inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] px-5 py-3 text-sm font-semibold text-white"
             >
               <ArrowLeft className="h-4 w-4" />
-              {selectedFlavorId ? "Go to steps" : "Go to flavor"}
+              Back
             </button>
           </section>
         </div>
@@ -1172,28 +1089,27 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
     return (
       <div className="space-y-5">
         {renderStageHeader(
-          "Test the humor flavor",
-          "Use a test-set image, pasted URL, or upload. When the test succeeds, the wizard moves to the archive automatically.",
+          "Test",
+          "Pick an image and run.",
         )}
 
         <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
-          <section className="panel rounded-[2rem] p-5 sm:p-6">
-            <p className="text-xs uppercase tracking-[0.26em] text-[var(--ink-soft)]">Prompt Chain Preview</p>
-            <pre className="mt-5 max-h-[560px] overflow-auto rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface-muted)] p-4 text-xs leading-6 text-[var(--ink-soft)] whitespace-pre-wrap">
+          <section className="panel rounded-[1.6rem] p-4 sm:p-5">
+            <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Preview</p>
+            <pre className="mt-4 max-h-[560px] overflow-auto rounded-[1.2rem] border border-[var(--line)] bg-[var(--surface-muted)] p-4 text-xs leading-6 text-[var(--ink-soft)] whitespace-pre-wrap">
               {promptChainPreview || "No steps yet. Add steps to preview the humor flavor prompt chain."}
             </pre>
           </section>
 
-          <section className="panel rounded-[2rem] p-5 sm:p-6">
-            <div className="rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-4">
-              <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Active flavor</p>
-              <h3 className="mt-2 text-xl font-semibold">{selectedFlavor?.name}</h3>
-              <p className="mt-2 text-sm text-[var(--ink-soft)]">{orderedSteps.length} ordered step{orderedSteps.length === 1 ? "" : "s"}</p>
+          <section className="panel rounded-[1.6rem] p-4 sm:p-5">
+            <div className="rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-3">
+              <h3 className="text-lg font-semibold">{selectedFlavor?.name}</h3>
+              <p className="mt-1 text-sm text-[var(--ink-soft)]">{orderedSteps.length} step{orderedSteps.length === 1 ? "" : "s"}</p>
             </div>
 
             <div className="mt-5 space-y-4">
               <label className="space-y-2">
-                <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Image test set</span>
+                <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Image</span>
                 <select
                   value={selectedImageId}
                   onChange={(event) => {
@@ -1202,7 +1118,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                   }}
                   className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
                 >
-                  <option value="">Choose from images table</option>
+                  <option value="">Choose image</option>
                   {images.map((image) => (
                     <option key={image.id} value={image.id}>
                       {image.id}
@@ -1233,18 +1149,14 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                     </div>
                   )}
                   <div className="flex flex-wrap items-center justify-between gap-2 px-1 pt-3 text-xs text-[var(--ink-soft)]">
-                    <span className="font-medium text-[var(--ink)]">Selected image preview</span>
+                    <span className="font-medium text-[var(--ink)]">Preview</span>
                     <span className="truncate">Image id: {selectedImage.id}</span>
-                  </div>
-                  <div className="mt-2 flex items-center gap-2 px-1 text-xs text-[var(--ink-soft)]">
-                    <FileImage className="h-4 w-4" />
-                    The full image is shown without cropping.
                   </div>
                 </div>
               ) : null}
 
               <label className="space-y-2">
-                <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Or paste image URL</span>
+                <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">URL</span>
                 <input
                   value={manualImageUrl}
                   onChange={(event) => {
@@ -1260,7 +1172,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
               </label>
 
               <label className="space-y-2">
-                <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Or upload image file</span>
+                <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Upload</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -1287,7 +1199,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                 className="pill-button inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-muted)] px-5 py-3 text-sm font-semibold text-[var(--ink)] hover:bg-[var(--surface-strong)]"
               >
                 <ArrowLeft className="h-4 w-4" />
-                Back to steps
+                Back
               </button>
               <button
                 type="button"
@@ -1301,11 +1213,11 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
             </div>
 
             {latestRun ? (
-              <div className="mt-5 rounded-[1.5rem] border border-[var(--line)] bg-[var(--surface-muted)] p-4">
+              <div className="mt-5 rounded-[1.3rem] border border-[var(--line)] bg-[var(--surface-muted)] p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Latest result</p>
-                    <h3 className="mt-2 text-xl font-semibold">{latestRun.captions.length} caption{latestRun.captions.length === 1 ? "" : "s"} returned</h3>
+                    <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Result</p>
+                    <h3 className="mt-2 text-xl font-semibold">{latestRun.captions.length} caption{latestRun.captions.length === 1 ? "" : "s"}</h3>
                   </div>
                   <div className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-xs text-[var(--ink-soft)]">
                     Model: {latestRun.modelTag}
@@ -1313,7 +1225,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                 </div>
                 <div className="mt-4 space-y-3">
                   {latestRun.captions.length === 0 ? (
-                    <p className="text-sm text-[var(--ink-soft)]">The API returned a response, but no caption strings were extracted.</p>
+                    <p className="text-sm text-[var(--ink-soft)]">No captions returned.</p>
                   ) : (
                     latestRun.captions.map((caption, index) => (
                       <div key={`${caption}-${index}`} className="rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-sm leading-6">
@@ -1340,15 +1252,15 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
     if (!selectedFlavorId) {
       return (
         <div className="space-y-5">
-          {renderStageHeader("Save a flavor before reviewing results", "The archive belongs to a specific flavor, so start at the first screen if nothing is selected.")}
-          <section className="panel rounded-[2rem] p-6">
+          {renderStageHeader("Save a flavor first")}
+          <section className="panel rounded-[1.6rem] p-5">
             <button
               type="button"
               onClick={() => onTabChange("flavor")}
               className="pill-button inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] px-5 py-3 text-sm font-semibold text-white"
             >
               <ArrowLeft className="h-4 w-4" />
-              Go to flavor
+              Back
             </button>
           </section>
         </div>
@@ -1358,18 +1270,15 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
     return (
       <div className="space-y-5">
         {renderStageHeader(
-          "Read the saved caption batches",
-          usesLegacyFlavorSchema
-            ? "Review the closest saved archive we can read from this Supabase project. Legacy caption rows are grouped into batches so you can still inspect outputs by flavor."
-            : "Review prompt-chain runs and the exact captions that a specific flavor produced.",
+          "Archive",
+          usesLegacyFlavorSchema ? "Saved captions." : "Saved runs and captions.",
         )}
 
-        <section className="panel rounded-[2rem] p-5 sm:p-6">
+        <section className="panel rounded-[1.6rem] p-4 sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-4">
-              <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Active flavor</p>
-              <h3 className="mt-2 text-xl font-semibold">{selectedFlavor?.name}</h3>
-              <p className="mt-2 text-sm text-[var(--ink-soft)]">{runs.length} saved run{runs.length === 1 ? "" : "s"}</p>
+            <div className="rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-3">
+              <h3 className="text-lg font-semibold">{selectedFlavor?.name}</h3>
+              <p className="mt-1 text-sm text-[var(--ink-soft)]">{runs.length} run{runs.length === 1 ? "" : "s"}</p>
             </div>
             <div className="flex flex-wrap gap-3">
               <button
@@ -1378,7 +1287,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                 className="pill-button inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-muted)] px-5 py-3 text-sm font-semibold text-[var(--ink)] hover:bg-[var(--surface-strong)]"
               >
                 <ArrowLeft className="h-4 w-4" />
-                Back to tester
+                Back
               </button>
               <button
                 type="button"
@@ -1387,14 +1296,14 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                 className="pill-button inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-muted)] px-5 py-3 text-sm font-semibold text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <RefreshCw className={`h-4 w-4 ${loadingFlavorData ? "animate-spin" : ""}`} />
-                Refresh archive
+                Refresh
               </button>
             </div>
           </div>
 
           {runs.length === 0 ? (
             <p className="mt-6 rounded-[1.3rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-4 text-sm text-[var(--ink-soft)]">
-              No saved runs yet for {selectedFlavor?.name}. Go to the tester and generate captions first.
+              No runs yet.
             </p>
           ) : (
             <div className="mt-6 grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
@@ -1429,7 +1338,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                         </span>
                       </div>
                       <p className={`mt-3 text-xs ${active ? "text-white/80" : "text-[var(--ink-soft)]"}`}>
-                        Image id: {run.image_id || "not saved"}
+                        {run.image_id || "No image id"}
                       </p>
                     </button>
                   );
@@ -1442,15 +1351,11 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                     <section className="rounded-[1.6rem] border border-[var(--line)] bg-[var(--surface-muted)] p-4 sm:p-5">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                          <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Run summary</p>
+                          <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Run</p>
                           <h3 className="mt-2 text-2xl font-semibold">{selectedFlavor?.name}</h3>
-                          <p className="mt-2 text-sm text-[var(--ink-soft)]">
-                            Created {formatTimestamp(selectedRun.created_at)} using {selectedRun.pipeline_model || "caption-pipeline-v1"}.
-                          </p>
+                          <p className="mt-2 text-sm text-[var(--ink-soft)]">{formatTimestamp(selectedRun.created_at)}</p>
                           {selectedRun.schema_variant === "legacy" ? (
-                            <p className="mt-2 text-xs leading-5 text-[var(--ink-soft)]">
-                              This batch was reconstructed from the legacy `captions` table because the newer run archive tables are not present in the connected Supabase project.
-                            </p>
+                            <p className="mt-2 text-xs text-[var(--ink-soft)]">Legacy archive</p>
                           ) : null}
                         </div>
                         <div className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-xs text-[var(--ink-soft)]">
@@ -1468,7 +1373,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                             />
                           </div>
                           <p className="mt-3 text-xs text-[var(--ink-soft)]">
-                            Full image preview for the selected caption batch.
+                            Full preview
                           </p>
                         </div>
                       ) : null}
@@ -1476,13 +1381,13 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                       {selectedRun.schema_variant === "legacy" ? null : (
                         <div className="mt-4 grid gap-4 lg:grid-cols-2">
                           <div>
-                            <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Request payload</p>
+                            <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Request</p>
                             <pre className="mt-2 max-h-[280px] overflow-auto rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] p-3 text-xs leading-6 text-[var(--ink-soft)] whitespace-pre-wrap">
                               {stringifyJson(selectedRun.request_payload)}
                             </pre>
                           </div>
                           <div>
-                            <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Raw response</p>
+                            <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Response</p>
                             <pre className="mt-2 max-h-[280px] overflow-auto rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] p-3 text-xs leading-6 text-[var(--ink-soft)] whitespace-pre-wrap">
                               {stringifyJson(selectedRun.raw_response)}
                             </pre>
@@ -1494,11 +1399,11 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                     <section className="rounded-[1.6rem] border border-[var(--line)] bg-[var(--surface-muted)] p-4 sm:p-5">
                       <div className="flex items-center gap-3">
                         <Sparkles className="h-5 w-5 text-[var(--brand)]" />
-                        <h3 className="text-2xl font-semibold">Generated captions</h3>
+                        <h3 className="text-2xl font-semibold">Captions</h3>
                       </div>
                       <div className="mt-4 space-y-3">
                         {visibleCaptions.length === 0 ? (
-                          <p className="text-sm text-[var(--ink-soft)]">No caption rows were archived for this run.</p>
+                          <p className="text-sm text-[var(--ink-soft)]">No captions.</p>
                         ) : (
                           visibleCaptions.map((caption) => (
                             <article
@@ -1517,7 +1422,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                   </>
                 ) : (
                   <section className="rounded-[1.6rem] border border-[var(--line)] bg-[var(--surface-muted)] p-5 text-sm text-[var(--ink-soft)]">
-                    Choose a saved run to inspect its captions and payloads.
+                    Select a run.
                   </section>
                 )}
               </div>
@@ -1529,25 +1434,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
   }
 
   return (
-    <section className="space-y-5">
-      <div className="grid gap-4 md:grid-cols-3">
-        <article className="panel rounded-[1.75rem] p-5">
-          <p className="text-xs uppercase tracking-[0.26em] text-[var(--ink-soft)]">Flavors</p>
-          <p className="mt-3 text-4xl font-semibold">{flavors.length}</p>
-          <p className="mt-2 text-sm text-[var(--ink-soft)]">Reusable humor approaches currently available.</p>
-        </article>
-        <article className="panel rounded-[1.75rem] p-5">
-          <p className="text-xs uppercase tracking-[0.26em] text-[var(--ink-soft)]">Steps</p>
-          <p className="mt-3 text-4xl font-semibold">{steps.length}</p>
-          <p className="mt-2 text-sm text-[var(--ink-soft)]">Ordered instructions in the active prompt chain.</p>
-        </article>
-        <article className="panel rounded-[1.75rem] p-5">
-          <p className="text-xs uppercase tracking-[0.26em] text-[var(--ink-soft)]">Archived Captions</p>
-          <p className="mt-3 text-4xl font-semibold">{captions.length}</p>
-          <p className="mt-2 text-sm text-[var(--ink-soft)]">Saved outputs tied to the active humor flavor.</p>
-        </article>
-      </div>
-
+    <section className="space-y-4">
       {globalError ? <p className="danger-panel rounded-[1.4rem] px-4 py-3 text-sm">{globalError}</p> : null}
 
       {flashMessage ? (
