@@ -134,10 +134,10 @@ export default function LoginPage() {
             <div className="cinema-kicker inline-flex items-center justify-center gap-2 rounded-full border border-[var(--line)] bg-[rgba(90,148,204,0.08)] px-4 py-2 text-xs text-[var(--brand-3)]">
               Humor Studio
             </div>
-            <h1 className="cinema-title mt-6 text-5xl font-semibold text-[#15383f] sm:text-6xl">
+            <h1 className="cinema-title mt-6 text-5xl font-semibold text-[var(--ink)] sm:text-6xl">
               Build humor flavors.
             </h1>
-            <div className="mx-auto mt-6 max-w-xl rounded-[1.35rem] border border-[rgba(90,148,204,0.32)] bg-[rgba(90,148,204,0.1)] px-5 py-4 text-sm leading-6 text-[#35515d]">
+            <div className="mx-auto mt-6 max-w-xl rounded-[1.35rem] border border-[var(--line)] bg-[var(--surface-muted)] px-5 py-4 text-sm leading-6 text-[var(--ink-soft)]">
               Create flavor chains, edit prompt steps, and test captions on images.
             </div>
           </article>
