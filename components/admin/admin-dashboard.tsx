@@ -60,13 +60,13 @@ export function AdminDashboard({ adminEmail }: AdminDashboardProps) {
   }
 
   return (
-    <main className="min-h-screen px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+    <main className="cinema-page min-h-screen px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
       <div className="mx-auto max-w-[1320px] space-y-5">
-        <header className="panel rounded-[1.75rem] px-5 py-5 sm:px-6 sm:py-5">
+        <header className="panel cinema-banner rounded-[1.75rem] px-5 py-5 shadow-panel sm:px-6 sm:py-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="mt-4 flex flex-wrap items-center gap-3">
-                <h1 className="text-3xl font-semibold text-[var(--ink)] sm:text-4xl">Humor Studio</h1>
+                <h1 className="cinema-display text-3xl font-semibold text-[var(--ink)] sm:text-4xl">Humor Studio</h1>
                 <div className="rounded-full border border-[var(--line)] bg-[var(--surface-muted)] px-3 py-1 text-xs text-[var(--ink-soft)]">
                   {adminEmail || "Administrator"}
                 </div>
@@ -99,7 +99,7 @@ export function AdminDashboard({ adminEmail }: AdminDashboardProps) {
                   onClick={() => setActiveTab(tab.id)}
                   className={`pill-button inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold ${
                     active
-                      ? "bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] text-white shadow-panel"
+                      ? "bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] text-white shadow-glow"
                       : "border border-[var(--line)] bg-[var(--surface-muted)] text-[var(--ink)] hover:bg-[var(--surface-strong)]"
                   }`}
                 >

@@ -122,7 +122,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden px-6 py-10 sm:px-10">
+    <main className="cinema-page relative min-h-screen overflow-hidden px-6 py-10 sm:px-10">
       <div className="orb orb-a" aria-hidden />
       <div className="orb orb-b" aria-hidden />
       <div className="orb orb-c" aria-hidden />
@@ -130,19 +130,19 @@ export default function LoginPage() {
 
       <section className="relative mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-5xl items-center justify-center">
         <div className="grid w-full gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <article className="panel rounded-[1.75rem] p-8 sm:p-10">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-2 text-xs uppercase tracking-[0.28em] text-[var(--ink-soft)]">
+          <article className="panel rounded-[1.75rem] p-8 shadow-panel sm:p-10">
+            <div className="cinema-kicker inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-2 text-xs text-[var(--ink-soft)]">
               Humor Studio
             </div>
-            <h1 className="mt-6 max-w-2xl text-5xl font-semibold leading-[0.92] text-[var(--ink)] sm:text-6xl">
+            <h1 className="cinema-title mt-6 max-w-2xl text-5xl font-semibold text-[var(--ink)] sm:text-6xl">
               Build humor flavors.
             </h1>
           </article>
 
-          <aside className="panel-strong rounded-[1.75rem] p-8 sm:p-10">
+          <aside className="panel-strong rounded-[1.75rem] p-8 shadow-glow sm:p-10">
             <div className="rounded-[1.35rem] border border-[var(--line)] bg-[var(--surface-muted)] p-5">
-              <div className="text-xs uppercase tracking-[0.3em] text-[var(--ink-soft)]">Admin Login</div>
-              <h2 className="mt-3 text-3xl font-semibold">Google</h2>
+              <div className="cinema-kicker text-xs text-[var(--ink-soft)]">Admin Login</div>
+              <h2 className="cinema-display mt-3 text-3xl font-semibold">Google</h2>
             </div>
 
             {checkingSession ? (
@@ -157,7 +157,7 @@ export default function LoginPage() {
               type="button"
               onClick={handleLogin}
               disabled={signingIn}
-              className="pill-button mt-8 inline-flex w-full items-center justify-center gap-3 rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] px-6 py-4 text-base font-semibold text-white shadow-panel disabled:cursor-not-allowed disabled:opacity-70"
+              className="pill-button mt-8 inline-flex w-full items-center justify-center gap-3 rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] px-6 py-4 text-base font-semibold text-white shadow-glow disabled:cursor-not-allowed disabled:opacity-70"
             >
               {signingIn ? "Redirecting to Google..." : "Sign in with Google"}
             </button>
