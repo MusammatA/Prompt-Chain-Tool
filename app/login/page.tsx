@@ -1,6 +1,5 @@
 "use client";
 
-import { ShieldCheck, WandSparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "../../lib/supabase-browser";
@@ -131,43 +130,41 @@ export default function LoginPage() {
 
       <section className="relative mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-5xl items-center justify-center">
         <div className="grid w-full gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-          <article className="panel rounded-[2rem] p-8 sm:p-10">
+          <article className="panel rounded-[1.75rem] p-8 sm:p-10">
             <div className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-2 text-xs uppercase tracking-[0.28em] text-[var(--ink-soft)]">
-              Humor Project 3
+              Humor Studio
             </div>
             <h1 className="mt-6 max-w-2xl text-5xl font-semibold leading-[0.92] text-[var(--ink)] sm:text-6xl">
-              Build prompt chains that turn images into a repeatable humor flavor.
+              Build humor flavors.
             </h1>
-            <p className="mt-5 max-w-2xl text-sm leading-7 text-[var(--ink-soft)] sm:text-base">
-              This admin studio is for creating humor flavors, authoring ordered steps, testing them against your image
-              set, and reviewing the caption batches each flavor produces.
-            </p>
-            <div className="mt-8 grid gap-4 sm:grid-cols-2">
-              <div className="rounded-[1.6rem] border border-[var(--line)] bg-[var(--surface-strong)] p-5">
-                <WandSparkles className="h-6 w-6 text-[var(--brand)]" />
-                <h2 className="mt-4 text-xl font-semibold">Flavor-first workflow</h2>
-                <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
-                  Create a flavor, break it into steps, reorder the chain, and test the full prompt path without
-                  leaving the dashboard.
-                </p>
-              </div>
-              <div className="rounded-[1.6rem] border border-[var(--line)] bg-[var(--surface-strong)] p-5">
-                <ShieldCheck className="h-6 w-6 text-[var(--brand-2)]" />
-                <h2 className="mt-4 text-xl font-semibold">Admin-only access</h2>
-                <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
-                  The app only unlocks when the signed-in profile has <code>is_superadmin</code> or <code>is_matrix_admin</code> set to true.
-                </p>
-              </div>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <span className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-2 text-sm text-[var(--ink-soft)]">
+                Create
+              </span>
+              <span className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-2 text-sm text-[var(--ink-soft)]">
+                Test
+              </span>
+              <span className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-2 text-sm text-[var(--ink-soft)]">
+                Archive
+              </span>
+              <span className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-2 text-sm text-[var(--ink-soft)]">
+                Admin only
+              </span>
             </div>
           </article>
 
-          <aside className="panel-strong rounded-[2rem] p-8 sm:p-10">
-            <div className="rounded-[1.5rem] border border-[var(--line)] bg-[var(--surface-muted)] p-5">
-              <p className="text-xs uppercase tracking-[0.3em] text-[var(--ink-soft)]">Admin Login</p>
-              <h2 className="mt-3 text-3xl font-semibold">Continue with Google</h2>
-              <p className="mt-3 text-sm leading-6 text-[var(--ink-soft)]">
-                Sign in with the account that has matrix or superadmin access in the <code>profiles</code> table.
-              </p>
+          <aside className="panel-strong rounded-[1.75rem] p-8 sm:p-10">
+            <div className="rounded-[1.35rem] border border-[var(--line)] bg-[var(--surface-muted)] p-5">
+              <div className="text-xs uppercase tracking-[0.3em] text-[var(--ink-soft)]">Admin Login</div>
+              <h2 className="mt-3 text-3xl font-semibold">Google</h2>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <span className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-1 text-xs text-[var(--ink-soft)]">
+                  superadmin
+                </span>
+                <span className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-1 text-xs text-[var(--ink-soft)]">
+                  matrix_admin
+                </span>
+              </div>
             </div>
 
             {checkingSession ? (
@@ -186,10 +183,6 @@ export default function LoginPage() {
             >
               {signingIn ? "Redirecting to Google..." : "Sign in with Google"}
             </button>
-
-            <p className="mt-4 text-xs leading-6 text-[var(--ink-soft)]">
-              After Google returns, the app checks your profile flags before opening the admin studio.
-            </p>
           </aside>
         </div>
       </section>
