@@ -128,30 +128,33 @@ export default function LoginPage() {
       <div className="orb orb-c" aria-hidden />
       <div className="hero-grid" aria-hidden />
 
-      <section className="relative mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-5xl items-center justify-center">
-        <div className="grid w-full gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <article className="panel rounded-[1.75rem] p-8 shadow-panel sm:p-10">
-            <div className="cinema-kicker inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-2 text-xs text-[var(--ink-soft)]">
+      <section className="relative mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-3xl items-center justify-center">
+        <div className="flex w-full flex-col items-center gap-6 text-center">
+          <article className="panel w-full rounded-[1.75rem] p-8 shadow-panel sm:p-10">
+            <div className="cinema-kicker inline-flex items-center justify-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-2 text-xs text-[var(--ink-soft)]">
               Humor Studio
             </div>
-            <h1 className="cinema-title mt-6 max-w-2xl text-5xl font-semibold text-[var(--ink)] sm:text-6xl">
+            <h1 className="cinema-title mt-6 text-5xl font-semibold text-[var(--ink)] sm:text-6xl">
               Build humor flavors.
             </h1>
+            <div className="mx-auto mt-6 max-w-xl rounded-[1.35rem] border border-[var(--line)] bg-[var(--surface-muted)] px-5 py-4 text-sm leading-6 text-[var(--ink-soft)]">
+              Create flavor chains, edit prompt steps, and test captions on images.
+            </div>
           </article>
 
-          <aside className="panel-strong rounded-[1.75rem] p-8 shadow-glow sm:p-10">
-            <div className="rounded-[1.35rem] border border-[var(--line)] bg-[var(--surface-muted)] p-5">
+          <aside className="panel-strong w-full max-w-xl rounded-[1.75rem] p-8 text-center shadow-glow sm:p-10">
+            <div className="rounded-[1.35rem] border border-[var(--line)] bg-[var(--surface-muted)] p-5 text-center">
               <div className="cinema-kicker text-xs text-[var(--ink-soft)]">Admin Login</div>
               <h2 className="cinema-display mt-3 text-3xl font-semibold">Google</h2>
             </div>
 
             {checkingSession ? (
-              <p className="mt-6 rounded-[1.3rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-3 text-sm text-[var(--ink-soft)]">
+              <p className="mt-6 rounded-[1.3rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-3 text-center text-sm text-[var(--ink-soft)]">
                 Checking your current session...
               </p>
             ) : null}
 
-            {errorMessage ? <p className="danger-panel mt-6 rounded-[1.3rem] px-4 py-3 text-sm">{errorMessage}</p> : null}
+            {errorMessage ? <p className="danger-panel mt-6 rounded-[1.3rem] px-4 py-3 text-center text-sm">{errorMessage}</p> : null}
 
             <button
               type="button"
