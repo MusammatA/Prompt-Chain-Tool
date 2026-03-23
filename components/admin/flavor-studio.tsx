@@ -8,13 +8,14 @@ import {
   Loader2,
   Plus,
   RefreshCw,
+  Search,
   Save,
   Sparkles,
   TestTube2,
   Trash2,
   WandSparkles,
 } from "lucide-react";
-import { startTransition, useEffect, useState } from "react";
+import { startTransition, useDeferredValue, useEffect, useState } from "react";
 import type {
   GeneratedFlavorCaption,
   HumorFlavor,
@@ -163,6 +164,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
   const [selectedRunId, setSelectedRunId] = useState("");
   const [isCreatingFlavor, setIsCreatingFlavor] = useState(false);
   const [selectedStepId, setSelectedStepId] = useState("");
+  const [flavorSearch, setFlavorSearch] = useState("");
   const [flavorDraft, setFlavorDraft] = useState<FlavorDraft>(EMPTY_FLAVOR_DRAFT);
   const [newStepDraft, setNewStepDraft] = useState<StepDraft>(EMPTY_STEP_DRAFT);
   const [globalError, setGlobalError] = useState("");
@@ -182,6 +184,13 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
   const selectedRunImageUrl =
     selectedRun?.image_url ||
     getImageUrl(images.find((item) => item.id === selectedRun?.image_id) ?? null);
+  const deferredFlavorSearch = useDeferredValue(flavorSearch.trim().toLowerCase());
+  const filteredFlavors = deferredFlavorSearch
+    ? flavors.filter((flavor) => {
+        const searchable = [flavor.name, flavor.slug, flavor.description].join(" ").toLowerCase();
+        return searchable.includes(deferredFlavorSearch);
+      })
+    : flavors;
   const orderedSteps = [...steps].sort((a, b) => a.step_order - b.step_order);
   const visibleCaptions = selectedRun
     ? captions.filter((item) => item.humor_flavor_run_id === selectedRun.id)
@@ -798,6 +807,19 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
             </button>
           </div>
 
+          <label className="mt-4 block">
+            <span className="sr-only">Search flavors</span>
+            <div className="flex items-center gap-3 rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3">
+              <Search className="h-4 w-4 text-[var(--ink-soft)]" />
+              <input
+                value={flavorSearch}
+                onChange={(event) => setFlavorSearch(event.target.value)}
+                placeholder="Search flavors"
+                className="w-full bg-transparent text-sm outline-none placeholder:text-[var(--ink-soft)]"
+              />
+            </div>
+          </label>
+
           <button
             type="button"
             onClick={beginCreateFlavor}
@@ -810,7 +832,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
           <div className="mt-4 rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface-muted)] p-3">
             <div className="flex items-center justify-between gap-3 px-1 pb-3">
               <p className="text-xs uppercase tracking-[0.18em] text-[var(--ink-soft)]">
-                {flavors.length} flavor{flavors.length === 1 ? "" : "s"}
+                {filteredFlavors.length} flavor{filteredFlavors.length === 1 ? "" : "s"}
               </p>
               <p className="text-[11px] text-[var(--ink-soft)]">Scroll</p>
             </div>
@@ -819,12 +841,12 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
               <p className="rounded-[1.3rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-4 text-sm text-[var(--ink-soft)]">
                 Loading flavors...
               </p>
-            ) : flavors.length === 0 ? (
+            ) : filteredFlavors.length === 0 ? (
               <p className="rounded-[1.3rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-4 text-sm text-[var(--ink-soft)]">
-                No flavors yet.
+                {flavors.length === 0 ? "No flavors yet." : "No matching flavors."}
               </p>
             ) : (
-              flavors.map((flavor) => {
+              filteredFlavors.map((flavor) => {
                 const active = flavor.id === selectedFlavorId && !isCreatingFlavor;
                 return (
                   <button

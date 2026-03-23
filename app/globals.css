@@ -5,15 +5,15 @@
 :root {
   color-scheme: light;
   --bg: #f5f6f2;
-  --bg-2: #edf5ef;
+  --bg-2: #eef4fb;
   --surface: rgba(255, 253, 248, 0.96);
   --surface-strong: rgba(255, 253, 248, 0.98);
   --surface-muted: rgba(248, 245, 238, 0.9);
-  --line: rgba(185, 201, 200, 0.88);
+  --line: rgba(173, 196, 224, 0.88);
   --ink: #1f2d2f;
   --ink-soft: #5b6b70;
   --brand: #e25f34;
-  --brand-2: #4ea96a;
+  --brand-2: #8bc1ef;
   --brand-3: #5a94cc;
   --danger: #bf3e2a;
   --shadow: 0 12px 34px rgba(39, 47, 56, 0.12), 0 28px 72px rgba(39, 47, 56, 0.08);
@@ -30,7 +30,7 @@ html.dark {
   --ink: #eef4f8;
   --ink-soft: #bfd0db;
   --brand: #ef7245;
-  --brand-2: #6ba4da;
+  --brand-2: #8bc1ef;
   --brand-3: #4778b3;
   --danger: #ff8b74;
   --shadow: 0 18px 48px rgba(5, 10, 18, 0.28), 0 30px 80px rgba(5, 10, 18, 0.18);
@@ -50,14 +50,15 @@ body {
   min-height: 100vh;
   color: var(--ink);
   background:
-    linear-gradient(to bottom, rgba(248, 249, 245, 0.98) 0%, rgba(244, 246, 242, 0.84) 36%, rgba(240, 244, 240, 0.62) 70%, rgba(235, 241, 238, 0.32) 100%),
+    linear-gradient(to bottom, rgba(248, 249, 245, 0.98) 0%, rgba(244, 246, 244, 0.86) 36%, rgba(239, 244, 248, 0.68) 70%, rgba(234, 240, 247, 0.34) 100%),
     radial-gradient(1100px 480px at 12% -8%, rgba(226, 95, 52, 0.24), transparent 60%),
-    radial-gradient(980px 420px at 82% 12%, rgba(78, 169, 106, 0.2), transparent 62%),
+    radial-gradient(980px 420px at 82% 12%, rgba(139, 193, 239, 0.22), transparent 62%),
     radial-gradient(760px 420px at 50% 0%, rgba(90, 148, 204, 0.19), transparent 58%),
+    radial-gradient(880px 360px at 44% 100%, rgba(226, 95, 52, 0.1), transparent 56%),
     linear-gradient(to bottom, rgba(31, 45, 47, 0.05) 1px, transparent 1px),
     linear-gradient(to right, rgba(31, 45, 47, 0.05) 1px, transparent 1px),
     linear-gradient(180deg, var(--bg), var(--bg-2));
-  background-size: auto, auto, auto, auto, 28px 28px, 28px 28px, auto;
+  background-size: auto, auto, auto, auto, auto, 28px 28px, 28px 28px, auto;
   font-family: "IBM Plex Mono", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   overflow-x: hidden;
 }
@@ -187,7 +188,7 @@ html.dark .cinema-display {
   right: 1.5rem;
   bottom: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(90, 148, 204, 0.38), transparent);
+  background: linear-gradient(90deg, transparent, rgba(226, 95, 52, 0.28), rgba(90, 148, 204, 0.4), transparent);
 }
 
 .panel {
@@ -224,13 +225,14 @@ html.dark .cinema-display {
 .panel::before {
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.56), transparent 40%),
-    radial-gradient(circle at top left, rgba(90, 148, 204, 0.08), transparent 30%);
+    radial-gradient(circle at top left, rgba(90, 148, 204, 0.08), transparent 30%),
+    radial-gradient(circle at right, rgba(226, 95, 52, 0.08), transparent 32%);
 }
 
 .panel-strong::before {
   background:
-    radial-gradient(circle at top right, rgba(255, 140, 211, 0.16), transparent 36%),
-    radial-gradient(circle at bottom left, rgba(90, 148, 204, 0.14), transparent 32%);
+    radial-gradient(circle at top right, rgba(139, 193, 239, 0.16), transparent 36%),
+    radial-gradient(circle at bottom left, rgba(226, 95, 52, 0.16), transparent 32%);
 }
 
 html.dark .panel {
@@ -312,7 +314,7 @@ html.dark .panel-strong::before {
   left: 34%;
   height: 320px;
   width: 320px;
-  background: rgba(78, 169, 106, 0.24);
+  background: linear-gradient(135deg, rgba(226, 95, 52, 0.2), rgba(139, 193, 239, 0.22));
 }
 
 .pill-button {
