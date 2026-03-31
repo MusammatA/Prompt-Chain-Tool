@@ -40,9 +40,22 @@ const IMAGE_UPLOAD_TIMEOUT_MS = 90_000;
 const IMAGE_REGISTER_TIMEOUT_MS = 45_000;
 const GENERATE_CAPTIONS_TIMEOUT_MS = 180_000;
 
-function extractErrorMessage(status: number, bodyText: string) {
+function looksLikeHtml(bodyText: string) {
+  return /<!doctype\s+html|<html[\s>]/i.test(bodyText);
+}
+
+function extractErrorMessage(status: number, bodyText: string, requestTarget?: string) {
   const trimmed = bodyText.trim();
+  const fallbackTarget = requestTarget || "upstream service";
+
+  if (status === 504) {
+    return `The request to ${fallbackTarget} timed out before the server finished processing it. Please try again or use a simpler flavor/image combination.`;
+  }
+
   if (!trimmed) return `Request failed with status ${status}.`;
+  if (looksLikeHtml(trimmed)) {
+    return `Request to ${fallbackTarget} failed with status ${status}. The upstream service returned an HTML error page instead of JSON.`;
+  }
   return `${status}: ${trimmed.slice(0, 220)}`;
 }
 
@@ -153,8 +166,9 @@ function extractModelTag(payload: PipelineGenerationResponse) {
 }
 
 async function uploadFileToPipeline(accessToken: string, file: File): Promise<UploadFileResult> {
+  const presignedUrlEndpoint = `${PIPELINE_BASE_URL}/pipeline/generate-presigned-url`;
   const step1Res = await fetchWithTimeout(
-    `${PIPELINE_BASE_URL}/pipeline/generate-presigned-url`,
+    presignedUrlEndpoint,
     {
       method: "POST",
       headers: {
@@ -167,7 +181,7 @@ async function uploadFileToPipeline(accessToken: string, file: File): Promise<Up
   );
 
   if (!step1Res.ok) {
-    throw new Error(extractErrorMessage(step1Res.status, await step1Res.text()));
+    throw new Error(extractErrorMessage(step1Res.status, await step1Res.text(), describeRequestTarget(presignedUrlEndpoint)));
   }
 
   const step1Data = (await step1Res.json()) as { presignedUrl?: string; cdnUrl?: string };
@@ -188,7 +202,7 @@ async function uploadFileToPipeline(accessToken: string, file: File): Promise<Up
   );
 
   if (!step2Res.ok) {
-    throw new Error(extractErrorMessage(step2Res.status, await step2Res.text()));
+    throw new Error(extractErrorMessage(step2Res.status, await step2Res.text(), describeRequestTarget(step1Data.presignedUrl)));
   }
 
   const registered = await registerRemoteImage(accessToken, step1Data.cdnUrl);
@@ -199,8 +213,9 @@ async function uploadFileToPipeline(accessToken: string, file: File): Promise<Up
 }
 
 async function registerRemoteImage(accessToken: string, imageUrl: string): Promise<RegisterUrlResult> {
+  const registerEndpoint = `${PIPELINE_BASE_URL}/pipeline/upload-image-from-url`;
   const res = await fetchWithTimeout(
-    `${PIPELINE_BASE_URL}/pipeline/upload-image-from-url`,
+    registerEndpoint,
     {
       method: "POST",
       headers: {
@@ -216,7 +231,7 @@ async function registerRemoteImage(accessToken: string, imageUrl: string): Promi
   );
 
   if (!res.ok) {
-    throw new Error(extractErrorMessage(res.status, await res.text()));
+    throw new Error(extractErrorMessage(res.status, await res.text(), describeRequestTarget(registerEndpoint)));
   }
 
   const data = (await res.json()) as { imageId?: string };
@@ -249,7 +264,7 @@ export async function runFlavorPromptChain(request: RunFlavorRequest): Promise<R
     const registered = await registerRemoteImage(accessToken, manualImageUrl.trim());
     imageId = registered.imageId;
     imageUrl = registered.imageUrl;
-  } else if (!imageId && imageUrl) {
+  } else if (imageUrl) {
     const registered = await registerRemoteImage(accessToken, imageUrl);
     imageId = registered.imageId;
     imageUrl = registered.imageUrl;
@@ -274,8 +289,9 @@ export async function runFlavorPromptChain(request: RunFlavorRequest): Promise<R
     })),
   };
 
+  const generateCaptionsEndpoint = `${PIPELINE_BASE_URL}/pipeline/generate-captions`;
   const res = await fetchWithTimeout(
-    `${PIPELINE_BASE_URL}/pipeline/generate-captions`,
+    generateCaptionsEndpoint,
     {
       method: "POST",
       headers: {
@@ -288,7 +304,7 @@ export async function runFlavorPromptChain(request: RunFlavorRequest): Promise<R
   );
 
   if (!res.ok) {
-    throw new Error(extractErrorMessage(res.status, await res.text()));
+    throw new Error(extractErrorMessage(res.status, await res.text(), describeRequestTarget(generateCaptionsEndpoint)));
   }
 
   const responsePayload = (await res.json()) as PipelineGenerationResponse;
