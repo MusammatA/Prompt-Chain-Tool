@@ -24,6 +24,7 @@ import type {
   PromptChainRun,
 } from "../../types";
 import {
+  PREFER_LEGACY_HUMOR_SCHEMA,
   createGeneratedFlavorCaptions,
   createHumorFlavor,
   createHumorFlavorStep,
@@ -145,8 +146,6 @@ function applyFlavorDraft(flavor: HumorFlavor | null): FlavorDraft {
 function defaultNewFlavorDraft() {
   return {
     ...EMPTY_FLAVOR_DRAFT,
-    name: "Untitled Humor Flavor",
-    slug: `flavor-${Date.now()}`,
   };
 }
 
@@ -163,6 +162,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
   const [selectedFlavorId, setSelectedFlavorId] = useState("");
   const [selectedRunId, setSelectedRunId] = useState("");
   const [isCreatingFlavor, setIsCreatingFlavor] = useState(false);
+  const [hasCustomSlug, setHasCustomSlug] = useState(false);
   const [selectedStepId, setSelectedStepId] = useState("");
   const [flavorSearch, setFlavorSearch] = useState("");
   const [flavorDraft, setFlavorDraft] = useState<FlavorDraft>(EMPTY_FLAVOR_DRAFT);
@@ -178,7 +178,8 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
   const [latestRun, setLatestRun] = useState<LatestRunState | null>(null);
 
   const selectedFlavor = flavors.find((item) => item.id === selectedFlavorId) ?? null;
-  const usesLegacyFlavorSchema = selectedFlavor?.schema_variant === "legacy";
+  const usesLegacyFlavorSchema =
+    selectedFlavor?.schema_variant === "legacy" || (!selectedFlavor && PREFER_LEGACY_HUMOR_SCHEMA);
   const selectedImage = images.find((item) => item.id === selectedImageId) ?? null;
   const selectedRun = runs.find((item) => item.id === selectedRunId) ?? runs[0] ?? null;
   const selectedRunImageUrl =
@@ -239,9 +240,11 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
     if (nextSelectedFlavorId) {
       setSelectedFlavorId(nextSelectedFlavorId);
       setIsCreatingFlavor(false);
+      setHasCustomSlug(true);
     } else {
       setSelectedFlavorId("");
       setIsCreatingFlavor(true);
+      setHasCustomSlug(false);
       setFlavorDraft(defaultNewFlavorDraft());
     }
 
@@ -297,6 +300,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
     if (flavor) {
       setFlavorDraft(applyFlavorDraft(flavor));
       setIsCreatingFlavor(false);
+      setHasCustomSlug(Boolean(flavor.slug));
     }
   }, [flavors, selectedFlavorId]);
 
@@ -315,6 +319,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
 
   function beginCreateFlavor() {
     setIsCreatingFlavor(true);
+    setHasCustomSlug(false);
     setSelectedFlavorId("");
       setFlavorDraft(defaultNewFlavorDraft());
       setSteps([]);
@@ -924,13 +929,14 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
               <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Flavor name</span>
               <input
                 value={flavorDraft.name}
-                onChange={(event) =>
+                onChange={(event) => {
+                  const nextName = event.target.value;
                   setFlavorDraft((current) => ({
                     ...current,
-                    name: event.target.value,
-                    slug: current.slug || slugify(event.target.value),
-                  }))
-                }
+                    name: nextName,
+                    slug: hasCustomSlug ? current.slug : slugify(nextName),
+                  }));
+                }}
                 placeholder="Observational chaos"
                 className="w-full rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
               />
@@ -939,43 +945,51 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
               <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Slug</span>
               <input
                 value={flavorDraft.slug}
-                onChange={(event) => setFlavorDraft((current) => ({ ...current, slug: slugify(event.target.value) }))}
+                onChange={(event) => {
+                  const nextSlug = slugify(event.target.value);
+                  setHasCustomSlug(Boolean(nextSlug));
+                  setFlavorDraft((current) => ({ ...current, slug: nextSlug }));
+                }}
                 placeholder="observational-chaos"
                 className="w-full rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
               />
             </label>
-            <label className="space-y-2 md:col-span-2">
-              <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Description</span>
-              <textarea
-                value={flavorDraft.description}
-                onChange={(event) => setFlavorDraft((current) => ({ ...current, description: event.target.value }))}
-                placeholder="Short description"
-                rows={3}
-                className="w-full rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
-              />
-            </label>
-            <label className="space-y-2 md:col-span-2">
-              <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Notes</span>
-              <textarea
-                value={flavorDraft.notes}
-                onChange={(event) => setFlavorDraft((current) => ({ ...current, notes: event.target.value }))}
-                placeholder="Optional"
-                rows={3}
-                className="w-full rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Status</span>
-              <select
-                value={flavorDraft.status}
-                onChange={(event) => setFlavorDraft((current) => ({ ...current, status: event.target.value }))}
-                className="w-full rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
-              >
-                <option value="draft">Draft</option>
-                <option value="active">Active</option>
-                <option value="archived">Archived</option>
-              </select>
-            </label>
+            {usesLegacyFlavorSchema ? null : (
+              <>
+                <label className="space-y-2 md:col-span-2">
+                  <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Description</span>
+                  <textarea
+                    value={flavorDraft.description}
+                    onChange={(event) => setFlavorDraft((current) => ({ ...current, description: event.target.value }))}
+                    placeholder="Short description"
+                    rows={3}
+                    className="w-full rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
+                  />
+                </label>
+                <label className="space-y-2 md:col-span-2">
+                  <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Notes</span>
+                  <textarea
+                    value={flavorDraft.notes}
+                    onChange={(event) => setFlavorDraft((current) => ({ ...current, notes: event.target.value }))}
+                    placeholder="Optional"
+                    rows={3}
+                    className="w-full rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Status</span>
+                  <select
+                    value={flavorDraft.status}
+                    onChange={(event) => setFlavorDraft((current) => ({ ...current, status: event.target.value }))}
+                    className="w-full rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
+                  >
+                    <option value="draft">Draft</option>
+                    <option value="active">Active</option>
+                    <option value="archived">Archived</option>
+                  </select>
+                </label>
+              </>
+            )}
           </div>
 
           <div className="mt-6 flex flex-wrap gap-3">

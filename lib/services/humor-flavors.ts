@@ -57,7 +57,7 @@ const LEGACY_IMAGE_INPUT_TYPE_ID = 1;
 const LEGACY_TEXT_INPUT_TYPE_ID = 2;
 const LEGACY_STRING_OUTPUT_TYPE_ID = 1;
 const LEGACY_ARRAY_OUTPUT_TYPE_ID = 2;
-const PREFER_LEGACY_HUMOR_SCHEMA =
+export const PREFER_LEGACY_HUMOR_SCHEMA =
   SUPABASE_URL.toLowerCase().includes("secure.almostcrackd.ai") ||
   SUPABASE_URL.toLowerCase().includes("qihsgnfjqmkjmoowyfbn.supabase.co");
 
@@ -115,22 +115,22 @@ function isLegacyStepSchemaError(message: string) {
 function normalizeFlavorRow(row: RowRecord): HumorFlavor {
   const id = asString(row.id);
   const slug = asOptionalString(row.slug);
-  const description = asOptionalString(row.description);
-  const derivedName =
-    asOptionalString(row.name) ||
-    asOptionalString(row.title) ||
-    (slug ? slugToTitle(slug) : null) ||
-    (description ? description.slice(0, 60) : null) ||
-    `Flavor ${id || "Untitled"}`;
-
   const hasModernColumns = Object.prototype.hasOwnProperty.call(row, "name") || Object.prototype.hasOwnProperty.call(row, "status");
+  const rawDescription = asOptionalString(row.description);
+  const derivedName = hasModernColumns
+    ? asOptionalString(row.name) ||
+      asOptionalString(row.title) ||
+      (slug ? slugToTitle(slug) : null) ||
+      (rawDescription ? rawDescription.slice(0, 60) : null) ||
+      `Flavor ${id || "Untitled"}`
+    : rawDescription || (slug ? slugToTitle(slug) : null) || `Flavor ${id || "Untitled"}`;
 
   return {
     ...row,
     id,
     name: derivedName,
     slug,
-    description,
+    description: hasModernColumns ? rawDescription : null,
     notes: asOptionalString(row.notes),
     status: asOptionalString(row.status) || "draft",
     created_at: asOptionalString(row.created_at) || asOptionalString(row.created_datetime_utc),
@@ -254,7 +254,7 @@ function buildLegacyFlavorPayload(input: FlavorInput) {
   const normalized = normalizeFlavorInput(input);
   return {
     slug: normalized.slug || normalized.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, ""),
-    description: normalized.description || normalized.name,
+    description: normalized.name,
   };
 }
 
@@ -364,7 +364,7 @@ export async function updateHumorFlavor(id: string, input: Partial<FlavorInput>)
       .from("humor_flavors")
       .update({
         slug: input.slug?.trim() || null,
-        description: input.description?.trim() || input.name?.trim() || null,
+        description: input.name?.trim() || null,
       })
       .eq("id", id)
       .select("*")
@@ -394,7 +394,7 @@ export async function updateHumorFlavor(id: string, input: Partial<FlavorInput>)
     .from("humor_flavors")
     .update({
       slug: input.slug?.trim() || null,
-      description: input.description?.trim() || input.name?.trim() || null,
+      description: input.name?.trim() || null,
     })
     .eq("id", id)
     .select("*")
