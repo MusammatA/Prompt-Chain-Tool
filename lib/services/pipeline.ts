@@ -1,5 +1,4 @@
 import { PIPELINE_BASE_URL } from "../supabase-config";
-import { getSupabaseBrowserClientOrThrow } from "./client";
 import type {
   HumorFlavor,
   HumorFlavorStep,
@@ -42,6 +41,7 @@ const IMAGE_REGISTER_TIMEOUT_MS = 45_000;
 const GENERATE_CAPTIONS_TIMEOUT_MS = 180_000;
 const SCHEDULED_CAPTION_POLL_TIMEOUT_MS = 90_000;
 const SCHEDULED_CAPTION_POLL_INTERVAL_MS = 4_000;
+const RECOVERY_ROUTE_TIMEOUT_MS = 15_000;
 
 type ErrorEnvelope = {
   message?: string | null;
@@ -259,35 +259,29 @@ function chooseRecoveredCaptionRows(
   );
 }
 
-async function fetchLegacyCaptionRowsForFlavor(humorFlavorId: string, limit = 40) {
+async function fetchRecoveryCaptionRowsForFlavor(humorFlavorId: string, limit = 40) {
   if (!humorFlavorId) return [] as Array<Record<string, unknown>>;
 
-  const supabase = getSupabaseBrowserClientOrThrow();
-  const { data, error } = await supabase
-    .from("captions")
-    .select("*")
-    .eq("humor_flavor_id", humorFlavorId)
-    .order("created_datetime_utc", { ascending: false })
-    .limit(limit);
+  const url = `/api/caption-recovery?flavorId=${encodeURIComponent(humorFlavorId)}&limit=${encodeURIComponent(String(limit))}`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "GET",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+      },
+    },
+    RECOVERY_ROUTE_TIMEOUT_MS,
+  );
 
-  if (error) throw new Error(error.message);
-  return (data ?? []) as Array<Record<string, unknown>>;
-}
+  const bodyText = await res.text();
+  if (!res.ok) {
+    throw new Error(extractErrorMessage(res.status, bodyText, describeRequestTarget(url)));
+  }
 
-async function fetchLegacyCaptionRowsForImage(humorFlavorId: string, imageId: string) {
-  if (!humorFlavorId || !imageId) return [] as Array<Record<string, unknown>>;
-
-  const supabase = getSupabaseBrowserClientOrThrow();
-  const { data, error } = await supabase
-    .from("captions")
-    .select("*")
-    .eq("humor_flavor_id", humorFlavorId)
-    .eq("image_id", imageId)
-    .order("created_datetime_utc", { ascending: false })
-    .limit(20);
-
-  if (error) throw new Error(error.message);
-  return (data ?? []) as Array<Record<string, unknown>>;
+  const payload = safeParseJson<{ rows?: Array<Record<string, unknown>> }>(bodyText);
+  return Array.isArray(payload?.rows) ? payload.rows : [];
 }
 
 async function pollForScheduledCaptions(humorFlavorId: string, imageId: string, baselineCaptionIds: Set<string>) {
@@ -295,11 +289,7 @@ async function pollForScheduledCaptions(humorFlavorId: string, imageId: string, 
   const requestStartedAtMs = Date.now();
 
   while (Date.now() < deadline) {
-    const [flavorRows, imageRows] = await Promise.all([
-      fetchLegacyCaptionRowsForFlavor(humorFlavorId, 40),
-      fetchLegacyCaptionRowsForImage(humorFlavorId, imageId),
-    ]);
-    const rows = imageRows.length ? imageRows : flavorRows;
+    const rows = await fetchRecoveryCaptionRowsForFlavor(humorFlavorId, 40);
     const candidateRows = chooseRecoveredCaptionRows(rows, {
       imageId,
       requestStartedAtMs,
@@ -321,7 +311,7 @@ async function pollForScheduledCaptions(humorFlavorId: string, imageId: string, 
     await new Promise((resolve) => window.setTimeout(resolve, SCHEDULED_CAPTION_POLL_INTERVAL_MS));
   }
 
-  const fallbackRows = await fetchLegacyCaptionRowsForFlavor(humorFlavorId, 40);
+  const fallbackRows = await fetchRecoveryCaptionRowsForFlavor(humorFlavorId, 40);
   const fallbackCandidates = chooseRecoveredCaptionRows(fallbackRows, {
     imageId,
     requestStartedAtMs,
@@ -454,7 +444,7 @@ export async function runFlavorPromptChain(request: RunFlavorRequest): Promise<R
 
   let baselineCaptionIds = new Set<string>();
   try {
-    const baselineRows = await fetchLegacyCaptionRowsForImage(flavor.id, imageId);
+    const baselineRows = await fetchRecoveryCaptionRowsForFlavor(flavor.id, 40);
     baselineCaptionIds = new Set(
       baselineRows.map((row) => String(row.id || "").trim()).filter(Boolean),
     );
