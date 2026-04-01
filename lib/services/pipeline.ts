@@ -1,4 +1,5 @@
 import { PIPELINE_BASE_URL } from "../supabase-config";
+import { getSupabaseBrowserClientOrThrow } from "./client";
 import type {
   HumorFlavor,
   HumorFlavorStep,
@@ -39,9 +40,43 @@ const PRESIGNED_URL_TIMEOUT_MS = 20_000;
 const IMAGE_UPLOAD_TIMEOUT_MS = 90_000;
 const IMAGE_REGISTER_TIMEOUT_MS = 45_000;
 const GENERATE_CAPTIONS_TIMEOUT_MS = 180_000;
+const SCHEDULED_CAPTION_POLL_TIMEOUT_MS = 90_000;
+const SCHEDULED_CAPTION_POLL_INTERVAL_MS = 4_000;
+
+type ErrorEnvelope = {
+  message?: string | null;
+  error?: boolean;
+  statusCode?: number;
+  statusMessage?: string | null;
+};
 
 function looksLikeHtml(bodyText: string) {
   return /<!doctype\s+html|<html[\s>]/i.test(bodyText);
+}
+
+function safeParseJson<T>(bodyText: string) {
+  try {
+    return JSON.parse(bodyText) as T;
+  } catch {
+    return null;
+  }
+}
+
+function readEnvelopeMessage(bodyText: string) {
+  const parsed = safeParseJson<ErrorEnvelope>(bodyText);
+  return String(parsed?.message || "").trim();
+}
+
+function isScheduledResponseText(bodyText: string) {
+  const trimmed = bodyText.trim();
+  const envelopeMessage = readEnvelopeMessage(trimmed);
+  return (
+    /^scheduled\b/i.test(trimmed) ||
+    /^scheduled\b/i.test(envelopeMessage) ||
+    envelopeMessage.includes('Unexpected token \'S\'') ||
+    envelopeMessage.includes('"Scheduled "') ||
+    /scheduled/i.test(envelopeMessage)
+  );
 }
 
 function extractErrorMessage(status: number, bodyText: string, requestTarget?: string) {
@@ -165,6 +200,59 @@ function extractModelTag(payload: PipelineGenerationResponse) {
   return String(payload.model || payload.modelTag || payload.model_name || payload.generator || "caption-pipeline-v1");
 }
 
+function getCaptionTextFromRow(row: Record<string, unknown>) {
+  const candidates = [row.caption_text, row.content, row.text, row.generated_caption, row.output];
+  for (const candidate of candidates) {
+    const text = String(candidate || "").trim();
+    if (text) return text;
+  }
+  return "";
+}
+
+async function fetchLegacyCaptionRowsForImage(humorFlavorId: string, imageId: string) {
+  if (!humorFlavorId || !imageId) return [] as Array<Record<string, unknown>>;
+
+  const supabase = getSupabaseBrowserClientOrThrow();
+  const { data, error } = await supabase
+    .from("captions")
+    .select("*")
+    .eq("humor_flavor_id", humorFlavorId)
+    .eq("image_id", imageId)
+    .order("created_datetime_utc", { ascending: false })
+    .limit(20);
+
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Array<Record<string, unknown>>;
+}
+
+async function pollForScheduledCaptions(humorFlavorId: string, imageId: string, baselineCaptionIds: Set<string>) {
+  const deadline = Date.now() + SCHEDULED_CAPTION_POLL_TIMEOUT_MS;
+
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => window.setTimeout(resolve, SCHEDULED_CAPTION_POLL_INTERVAL_MS));
+    const rows = await fetchLegacyCaptionRowsForImage(humorFlavorId, imageId);
+    const newRows = rows.filter((row) => {
+      const id = String(row.id || "").trim();
+      return id && !baselineCaptionIds.has(id);
+    });
+
+    const captions = newRows.map((row) => getCaptionTextFromRow(row)).filter(Boolean);
+    if (captions.length) {
+      return {
+        responsePayload: {
+          generator: "scheduled-caption-fallback",
+          data: {
+            captions: captions.map((caption_text) => ({ caption_text })),
+          },
+        } satisfies PipelineGenerationResponse,
+        captions,
+      };
+    }
+  }
+
+  return null;
+}
+
 async function uploadFileToPipeline(accessToken: string, file: File): Promise<UploadFileResult> {
   const presignedUrlEndpoint = `${PIPELINE_BASE_URL}/pipeline/generate-presigned-url`;
   const step1Res = await fetchWithTimeout(
@@ -274,6 +362,16 @@ export async function runFlavorPromptChain(request: RunFlavorRequest): Promise<R
     throw new Error("Choose a test-set image, paste an image URL, or upload a file before running the prompt chain.");
   }
 
+  let baselineCaptionIds = new Set<string>();
+  try {
+    const baselineRows = await fetchLegacyCaptionRowsForImage(flavor.id, imageId);
+    baselineCaptionIds = new Set(
+      baselineRows.map((row) => String(row.id || "").trim()).filter(Boolean),
+    );
+  } catch {
+    baselineCaptionIds = new Set<string>();
+  }
+
   const requestPayload = {
     imageId,
     humorFlavorId: flavor.id,
@@ -304,10 +402,44 @@ export async function runFlavorPromptChain(request: RunFlavorRequest): Promise<R
   );
 
   if (!res.ok) {
-    throw new Error(extractErrorMessage(res.status, await res.text(), describeRequestTarget(generateCaptionsEndpoint)));
+    const bodyText = await res.text();
+    if (isScheduledResponseText(bodyText)) {
+      const scheduledResult = await pollForScheduledCaptions(flavor.id, imageId, baselineCaptionIds);
+      if (scheduledResult) {
+        return {
+          requestPayload,
+          responsePayload: scheduledResult.responsePayload,
+          captions: scheduledResult.captions,
+          modelTag: "scheduled-caption-fallback",
+          imageId,
+          imageUrl,
+        };
+      }
+    }
+
+    throw new Error(extractErrorMessage(res.status, bodyText, describeRequestTarget(generateCaptionsEndpoint)));
   }
 
-  const responsePayload = (await res.json()) as PipelineGenerationResponse;
+  const responseText = await res.text();
+  const responsePayload = safeParseJson<PipelineGenerationResponse>(responseText);
+  if (!responsePayload) {
+    if (isScheduledResponseText(responseText)) {
+      const scheduledResult = await pollForScheduledCaptions(flavor.id, imageId, baselineCaptionIds);
+      if (scheduledResult) {
+        return {
+          requestPayload,
+          responsePayload: scheduledResult.responsePayload,
+          captions: scheduledResult.captions,
+          modelTag: "scheduled-caption-fallback",
+          imageId,
+          imageUrl,
+        };
+      }
+    }
+
+    throw new Error("The caption API returned a non-JSON response.");
+  }
+
   const captions = extractGeneratedCaptions(responsePayload)
     .map((item) => getCaptionText(item))
     .filter(Boolean);
