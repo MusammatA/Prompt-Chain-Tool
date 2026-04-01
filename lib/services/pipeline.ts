@@ -216,6 +216,64 @@ function getCaptionTextFromRow(row: Record<string, unknown>) {
   return "";
 }
 
+function getRowCreatedAt(row: Record<string, unknown>) {
+  const raw = String(row.created_datetime_utc || row.created_at || "").trim();
+  if (!raw) return 0;
+  const parsed = new Date(raw).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function chooseRecoveredCaptionRows(
+  rows: Array<Record<string, unknown>>,
+  options: {
+    imageId: string;
+    requestStartedAtMs: number;
+    baselineCaptionIds: Set<string>;
+  },
+) {
+  const { imageId, requestStartedAtMs, baselineCaptionIds } = options;
+  const requestFloorMs = requestStartedAtMs - 10_000;
+
+  const withIds = rows.filter((row) => String(row.id || "").trim());
+  const sameImage = withIds.filter((row) => String(row.image_id || "").trim() === imageId);
+  const recent = withIds.filter((row) => getRowCreatedAt(row) >= requestFloorMs);
+  const sameImageRecent = sameImage.filter((row) => getRowCreatedAt(row) >= requestFloorMs);
+  const unseen = withIds.filter((row) => !baselineCaptionIds.has(String(row.id || "").trim()));
+  const sameImageUnseen = sameImage.filter((row) => !baselineCaptionIds.has(String(row.id || "").trim()));
+  const recentUnseen = recent.filter((row) => !baselineCaptionIds.has(String(row.id || "").trim()));
+
+  return (
+    sameImageUnseen.length
+      ? sameImageUnseen
+      : sameImageRecent.length
+        ? sameImageRecent
+        : recentUnseen.length
+          ? recentUnseen
+          : sameImage.length
+            ? sameImage
+            : recent.length
+              ? recent
+              : unseen.length
+                ? unseen
+                : []
+  );
+}
+
+async function fetchLegacyCaptionRowsForFlavor(humorFlavorId: string, limit = 40) {
+  if (!humorFlavorId) return [] as Array<Record<string, unknown>>;
+
+  const supabase = getSupabaseBrowserClientOrThrow();
+  const { data, error } = await supabase
+    .from("captions")
+    .select("*")
+    .eq("humor_flavor_id", humorFlavorId)
+    .order("created_datetime_utc", { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Array<Record<string, unknown>>;
+}
+
 async function fetchLegacyCaptionRowsForImage(humorFlavorId: string, imageId: string) {
   if (!humorFlavorId || !imageId) return [] as Array<Record<string, unknown>>;
 
@@ -234,16 +292,20 @@ async function fetchLegacyCaptionRowsForImage(humorFlavorId: string, imageId: st
 
 async function pollForScheduledCaptions(humorFlavorId: string, imageId: string, baselineCaptionIds: Set<string>) {
   const deadline = Date.now() + SCHEDULED_CAPTION_POLL_TIMEOUT_MS;
+  const requestStartedAtMs = Date.now();
 
   while (Date.now() < deadline) {
-    await new Promise((resolve) => window.setTimeout(resolve, SCHEDULED_CAPTION_POLL_INTERVAL_MS));
-    const rows = await fetchLegacyCaptionRowsForImage(humorFlavorId, imageId);
-    const newRows = rows.filter((row) => {
-      const id = String(row.id || "").trim();
-      return id && !baselineCaptionIds.has(id);
+    const [flavorRows, imageRows] = await Promise.all([
+      fetchLegacyCaptionRowsForFlavor(humorFlavorId, 40),
+      fetchLegacyCaptionRowsForImage(humorFlavorId, imageId),
+    ]);
+    const rows = imageRows.length ? imageRows : flavorRows;
+    const candidateRows = chooseRecoveredCaptionRows(rows, {
+      imageId,
+      requestStartedAtMs,
+      baselineCaptionIds,
     });
-
-    const captions = newRows.map((row) => getCaptionTextFromRow(row)).filter(Boolean);
+    const captions = candidateRows.map((row) => getCaptionTextFromRow(row)).filter(Boolean);
     if (captions.length) {
       return {
         responsePayload: {
@@ -255,6 +317,27 @@ async function pollForScheduledCaptions(humorFlavorId: string, imageId: string, 
         captions,
       };
     }
+
+    await new Promise((resolve) => window.setTimeout(resolve, SCHEDULED_CAPTION_POLL_INTERVAL_MS));
+  }
+
+  const fallbackRows = await fetchLegacyCaptionRowsForFlavor(humorFlavorId, 40);
+  const fallbackCandidates = chooseRecoveredCaptionRows(fallbackRows, {
+    imageId,
+    requestStartedAtMs,
+    baselineCaptionIds,
+  });
+  const fallbackCaptions = fallbackCandidates.map((row) => getCaptionTextFromRow(row)).filter(Boolean);
+  if (fallbackCaptions.length) {
+    return {
+      responsePayload: {
+        generator: "scheduled-caption-fallback",
+        data: {
+          captions: fallbackCaptions.map((caption_text) => ({ caption_text })),
+        },
+      } satisfies PipelineGenerationResponse,
+      captions: fallbackCaptions,
+    };
   }
 
   return null;
