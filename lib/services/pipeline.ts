@@ -44,6 +44,15 @@ export type RunFlavorResult = {
   imageUrl: string;
 };
 
+type GenerateCaptionsPayload = Record<string, unknown>;
+type GenerateCaptionsResponseCandidate =
+  | PipelineGenerationResponse
+  | PipelineGeneratedCaption[]
+  | (Record<string, unknown> & {
+      records?: PipelineGeneratedCaption[] | null;
+      data?: PipelineGeneratedCaption[] | PipelineGenerationResponse["data"] | null;
+    });
+
 const PRESIGNED_URL_TIMEOUT_MS = 20_000;
 const IMAGE_UPLOAD_TIMEOUT_MS = 90_000;
 const IMAGE_REGISTER_TIMEOUT_MS = 45_000;
@@ -223,7 +232,36 @@ function getCaptionText(item: PipelineGeneratedCaption | null | undefined) {
   return "";
 }
 
-function extractGeneratedCaptions(payload: PipelineGenerationResponse) {
+function normalizeGenerationResponse(payload: GenerateCaptionsResponseCandidate): PipelineGenerationResponse {
+  if (Array.isArray(payload)) {
+    return { captions: payload };
+  }
+
+  if (Array.isArray(payload.records)) {
+    const { records, data, ...rest } = payload;
+    return {
+      ...rest,
+      captions: records,
+    };
+  }
+
+  if (Array.isArray(payload.data)) {
+    const { data, ...rest } = payload;
+    return {
+      ...rest,
+      data: {
+        captions: data,
+      },
+    };
+  }
+
+  return payload as PipelineGenerationResponse;
+}
+
+function extractGeneratedCaptions(payload: GenerateCaptionsResponseCandidate) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload.records)) return payload.records;
+  if (Array.isArray(payload.data)) return payload.data;
   if (Array.isArray(payload.captions)) return payload.captions;
   if (payload.data && Array.isArray(payload.data.captions)) return payload.data.captions;
   if (payload.caption && typeof payload.caption === "object") return [payload.caption];
@@ -241,6 +279,17 @@ function extractGeneratedCaptions(payload: PipelineGenerationResponse) {
 
 function extractModelTag(payload: PipelineGenerationResponse) {
   return String(payload.model || payload.modelTag || payload.model_name || payload.generator || "caption-pipeline-v1");
+}
+
+function shouldRetryWithLegacyPayload(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  return (
+    /(^|\s)(500|502|503|504):/.test(message) ||
+    /server error/i.test(message) ||
+    /unexpected token/i.test(message) ||
+    /non-json response/i.test(message) ||
+    /html error page/i.test(message)
+  );
 }
 
 function getCaptionTextFromRow(row: Record<string, unknown>) {
@@ -449,6 +498,83 @@ async function registerRemoteImage(accessToken: string, imageUrl: string): Promi
   };
 }
 
+async function requestGeneratedCaptions(options: {
+  accessToken: string;
+  payload: GenerateCaptionsPayload;
+  imageId: string;
+  imageUrl: string;
+  flavorId: string;
+  baselineCaptionIds: Set<string>;
+}) {
+  const { accessToken, payload, imageId, imageUrl, flavorId, baselineCaptionIds } = options;
+  const generateCaptionsEndpoint = `${PIPELINE_BASE_URL}/pipeline/generate-captions`;
+  const res = await fetchWithTimeout(
+    generateCaptionsEndpoint,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    },
+    GENERATE_CAPTIONS_TIMEOUT_MS,
+  );
+
+  if (!res.ok) {
+    const bodyText = await res.text();
+    if (isScheduledResponseText(bodyText) || isRecoverableJsonParseResponse(bodyText)) {
+      const scheduledResult = await pollForScheduledCaptions(flavorId, imageId, baselineCaptionIds);
+      if (scheduledResult) {
+        return {
+          requestPayload: payload,
+          responsePayload: scheduledResult.responsePayload,
+          captions: scheduledResult.captions,
+          modelTag: "scheduled-caption-fallback",
+          imageId,
+          imageUrl,
+        } satisfies RunFlavorResult;
+      }
+    }
+
+    throw new Error(extractErrorMessage(res.status, bodyText, describeRequestTarget(generateCaptionsEndpoint)));
+  }
+
+  const responseText = await res.text();
+  const parsed = safeParseJson<GenerateCaptionsResponseCandidate>(responseText);
+  if (!parsed) {
+    if (isScheduledResponseText(responseText) || isRecoverableJsonParseResponse(responseText)) {
+      const scheduledResult = await pollForScheduledCaptions(flavorId, imageId, baselineCaptionIds);
+      if (scheduledResult) {
+        return {
+          requestPayload: payload,
+          responsePayload: scheduledResult.responsePayload,
+          captions: scheduledResult.captions,
+          modelTag: "scheduled-caption-fallback",
+          imageId,
+          imageUrl,
+        } satisfies RunFlavorResult;
+      }
+    }
+
+    throw new Error("The caption API returned a non-JSON response.");
+  }
+
+  const responsePayload = normalizeGenerationResponse(parsed);
+  const captions = extractGeneratedCaptions(parsed)
+    .map((item) => getCaptionText(item))
+    .filter(Boolean);
+
+  return {
+    requestPayload: payload,
+    responsePayload,
+    captions,
+    modelTag: extractModelTag(responsePayload),
+    imageId,
+    imageUrl,
+  } satisfies RunFlavorResult;
+}
+
 export async function runFlavorPromptChain(request: RunFlavorRequest): Promise<RunFlavorResult> {
   const { accessToken, flavor, steps, selectedImage, manualImageUrl, uploadFile } = request;
   const orderedSteps = [...steps].sort((a, b) => a.step_order - b.step_order);
@@ -497,69 +623,37 @@ export async function runFlavorPromptChain(request: RunFlavorRequest): Promise<R
     steps: pipelineSteps,
   };
 
-  const generateCaptionsEndpoint = `${PIPELINE_BASE_URL}/pipeline/generate-captions`;
-  const res = await fetchWithTimeout(
-    generateCaptionsEndpoint,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
+  try {
+    return await requestGeneratedCaptions({
+      accessToken,
+      payload: requestPayload,
+      imageId,
+      imageUrl,
+      flavorId: flavor.id,
+      baselineCaptionIds,
+    });
+  } catch (primaryError) {
+    if (!shouldRetryWithLegacyPayload(primaryError)) {
+      throw primaryError;
+    }
+
+    const legacyPayload = { imageId };
+    const legacyResult = await requestGeneratedCaptions({
+      accessToken,
+      payload: legacyPayload,
+      imageId,
+      imageUrl,
+      flavorId: flavor.id,
+      baselineCaptionIds,
+    });
+
+    return {
+      ...legacyResult,
+      requestPayload: {
+        mode: "legacy-image-id-fallback",
+        originalPromptChainPayload: requestPayload,
+        legacyPayload,
       },
-      body: JSON.stringify(requestPayload),
-    },
-    GENERATE_CAPTIONS_TIMEOUT_MS,
-  );
-
-  if (!res.ok) {
-    const bodyText = await res.text();
-    if (isScheduledResponseText(bodyText) || isRecoverableJsonParseResponse(bodyText)) {
-      const scheduledResult = await pollForScheduledCaptions(flavor.id, imageId, baselineCaptionIds);
-      if (scheduledResult) {
-        return {
-          requestPayload,
-          responsePayload: scheduledResult.responsePayload,
-          captions: scheduledResult.captions,
-          modelTag: "scheduled-caption-fallback",
-          imageId,
-          imageUrl,
-        };
-      }
-    }
-
-    throw new Error(extractErrorMessage(res.status, bodyText, describeRequestTarget(generateCaptionsEndpoint)));
+    };
   }
-
-  const responseText = await res.text();
-  const responsePayload = safeParseJson<PipelineGenerationResponse>(responseText);
-  if (!responsePayload) {
-    if (isScheduledResponseText(responseText) || isRecoverableJsonParseResponse(responseText)) {
-      const scheduledResult = await pollForScheduledCaptions(flavor.id, imageId, baselineCaptionIds);
-      if (scheduledResult) {
-        return {
-          requestPayload,
-          responsePayload: scheduledResult.responsePayload,
-          captions: scheduledResult.captions,
-          modelTag: "scheduled-caption-fallback",
-          imageId,
-          imageUrl,
-        };
-      }
-    }
-
-    throw new Error("The caption API returned a non-JSON response.");
-  }
-
-  const captions = extractGeneratedCaptions(responsePayload)
-    .map((item) => getCaptionText(item))
-    .filter(Boolean);
-
-  return {
-    requestPayload,
-    responsePayload,
-    captions,
-    modelTag: extractModelTag(responsePayload),
-    imageId,
-    imageUrl,
-  };
 }
