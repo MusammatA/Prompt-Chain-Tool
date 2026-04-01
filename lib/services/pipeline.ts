@@ -79,6 +79,13 @@ function isScheduledResponseText(bodyText: string) {
   );
 }
 
+function isRecoverableJsonParseResponse(bodyText: string) {
+  const trimmed = bodyText.trim();
+  const envelopeMessage = readEnvelopeMessage(trimmed);
+  const candidate = `${trimmed}\n${envelopeMessage}`;
+  return /unexpected token/i.test(candidate) && /not valid json/i.test(candidate);
+}
+
 function extractErrorMessage(status: number, bodyText: string, requestTarget?: string) {
   const trimmed = bodyText.trim();
   const fallbackTarget = requestTarget || "upstream service";
@@ -403,7 +410,7 @@ export async function runFlavorPromptChain(request: RunFlavorRequest): Promise<R
 
   if (!res.ok) {
     const bodyText = await res.text();
-    if (isScheduledResponseText(bodyText)) {
+    if (isScheduledResponseText(bodyText) || isRecoverableJsonParseResponse(bodyText)) {
       const scheduledResult = await pollForScheduledCaptions(flavor.id, imageId, baselineCaptionIds);
       if (scheduledResult) {
         return {
@@ -423,7 +430,7 @@ export async function runFlavorPromptChain(request: RunFlavorRequest): Promise<R
   const responseText = await res.text();
   const responsePayload = safeParseJson<PipelineGenerationResponse>(responseText);
   if (!responsePayload) {
-    if (isScheduledResponseText(responseText)) {
+    if (isScheduledResponseText(responseText) || isRecoverableJsonParseResponse(responseText)) {
       const scheduledResult = await pollForScheduledCaptions(flavor.id, imageId, baselineCaptionIds);
       if (scheduledResult) {
         return {
