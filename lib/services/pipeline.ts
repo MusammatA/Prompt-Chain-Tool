@@ -26,6 +26,15 @@ type RunFlavorRequest = {
   uploadFile?: File | null;
 };
 
+type PipelineStepPayload = {
+  id: string;
+  order: number;
+  title: string;
+  systemPrompt: string | null;
+  instruction: string;
+  outputLabel: string | null;
+};
+
 export type RunFlavorResult = {
   requestPayload: Record<string, unknown>;
   responsePayload: PipelineGenerationResponse;
@@ -142,17 +151,44 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, ms:
   }
 }
 
-function buildPromptChain(flavor: HumorFlavor, steps: HumorFlavorStep[]) {
+function buildFinalCaptionJsonInstruction(instruction: string) {
+  const trimmed = instruction.trim();
+  const jsonReminder =
+    'Return only valid JSON with this exact shape: {"captions":["caption 1","caption 2","caption 3","caption 4","caption 5"]}. Do not include markdown, labels, numbering, or any extra text.';
+
+  if (/\"captions\"\s*:\s*\[/i.test(trimmed) || /valid json/i.test(trimmed)) {
+    return trimmed;
+  }
+
+  return [trimmed, jsonReminder].filter(Boolean).join("\n\n");
+}
+
+function normalizePipelineSteps(steps: HumorFlavorStep[]) {
   const ordered = [...steps].sort((a, b) => a.step_order - b.step_order);
+
+  return ordered.map((step, index) => {
+    const isFinalStep = index === ordered.length - 1;
+    return {
+      id: step.id,
+      order: step.step_order,
+      title: step.title,
+      systemPrompt: step.system_prompt ?? null,
+      instruction: isFinalStep ? buildFinalCaptionJsonInstruction(step.instruction) : step.instruction,
+      outputLabel: step.output_label ?? null,
+    } satisfies PipelineStepPayload;
+  });
+}
+
+function buildPromptChain(flavor: HumorFlavor, steps: PipelineStepPayload[]) {
   const flavorName = flavor.name || "Untitled flavor";
   return [
     `Humor flavor: ${flavorName}`,
     flavor.description ? `Flavor description: ${flavor.description}` : "",
-    ...ordered.map(
+    ...steps.map(
       (step) =>
         [
-          `Step ${step.step_order}: ${step.title.trim()}${step.output_label ? ` -> ${step.output_label.trim()}` : ""}`,
-          step.system_prompt?.trim() ? `System prompt:\n${step.system_prompt.trim()}` : "",
+          `Step ${step.order}: ${step.title.trim()}${step.outputLabel ? ` -> ${step.outputLabel.trim()}` : ""}`,
+          step.systemPrompt?.trim() ? `System prompt:\n${step.systemPrompt.trim()}` : "",
           step.instruction.trim() ? `User prompt:\n${step.instruction.trim()}` : "",
         ]
           .filter(Boolean)
@@ -416,6 +452,7 @@ async function registerRemoteImage(accessToken: string, imageUrl: string): Promi
 export async function runFlavorPromptChain(request: RunFlavorRequest): Promise<RunFlavorResult> {
   const { accessToken, flavor, steps, selectedImage, manualImageUrl, uploadFile } = request;
   const orderedSteps = [...steps].sort((a, b) => a.step_order - b.step_order);
+  const pipelineSteps = normalizePipelineSteps(orderedSteps);
 
   if (!orderedSteps.length) {
     throw new Error("Add at least one step before testing a humor flavor.");
@@ -456,15 +493,8 @@ export async function runFlavorPromptChain(request: RunFlavorRequest): Promise<R
     imageId,
     humorFlavorId: flavor.id,
     humorFlavorName: flavor.name,
-    promptChain: buildPromptChain(flavor, orderedSteps),
-    steps: orderedSteps.map((step) => ({
-      id: step.id,
-      order: step.step_order,
-      title: step.title,
-      systemPrompt: step.system_prompt ?? null,
-      instruction: step.instruction,
-      outputLabel: step.output_label ?? null,
-    })),
+    promptChain: buildPromptChain(flavor, pipelineSteps),
+    steps: pipelineSteps,
   };
 
   const generateCaptionsEndpoint = `${PIPELINE_BASE_URL}/pipeline/generate-captions`;
