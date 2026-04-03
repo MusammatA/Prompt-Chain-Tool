@@ -3,63 +3,78 @@
 @tailwind utilities;
 
 :root {
+  --bg: #f5f6f2;
+  --bg-2: #edf5ef;
+  --surface: #fffdf8;
+  --surface-strong: #fffdf8;
+  --surface-muted: #f8f5ee;
+  --ink: #1f2d2f;
+  --ink-soft: #5b6b70;
+  --line: rgba(185, 201, 200, 0.92);
+  --brand: #e25f34;
+  --brand-2: #4ea96a;
+  --brand-3: #5a94cc;
+  --danger: #bf3e2a;
+  --shadow: 0 12px 34px rgba(39, 47, 56, 0.12);
   color-scheme: light;
-  --bg: #f8fafc;
-  --bg-2: #eef4ff;
-  --surface: rgba(255, 255, 255, 0.94);
-  --surface-strong: rgba(255, 255, 255, 0.98);
-  --surface-muted: #f1f5f9;
-  --line: rgba(148, 163, 184, 0.28);
-  --ink: #0f172a;
-  --ink-soft: #475569;
-  --brand: #2563eb;
-  --brand-2: #2563eb;
-  --brand-3: #1d4ed8;
-  --danger: #dc2626;
-  --shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
 }
 
 html.dark {
+  --bg: #263743;
+  --bg-2: #314654;
+  --surface: rgba(34, 46, 58, 0.9);
+  --surface-strong: rgba(24, 20, 40, 0.98);
+  --surface-muted: rgba(42, 56, 68, 0.92);
+  --ink: #f4f1ff;
+  --ink-soft: #d6d0e8;
+  --line: rgba(185, 201, 200, 0.2);
+  --brand: #e25f34;
+  --brand-2: #4ea96a;
+  --brand-3: #7cb2e1;
+  --danger: #ff8e7b;
+  --shadow: 0 18px 42px rgba(9, 12, 18, 0.28);
   color-scheme: dark;
-  --bg: #0f172a;
-  --bg-2: #16213a;
-  --surface: rgba(15, 23, 42, 0.84);
-  --surface-strong: rgba(15, 23, 42, 0.96);
-  --surface-muted: rgba(30, 41, 59, 0.92);
-  --line: rgba(148, 163, 184, 0.18);
-  --ink: #f8fafc;
-  --ink-soft: #94a3b8;
-  --brand: #60a5fa;
-  --brand-2: #60a5fa;
-  --brand-3: #3b82f6;
-  --danger: #f87171;
-  --shadow: 0 20px 48px rgba(2, 6, 23, 0.34);
+}
+
+html {
+  min-height: 100%;
+  background-color: var(--bg);
+  overscroll-behavior-y: auto;
+  overflow-y: auto;
 }
 
 * {
   box-sizing: border-box;
 }
 
-html {
-  min-height: 100%;
-  background: var(--bg);
-}
-
 body {
   margin: 0;
   min-height: 100vh;
+  padding: 0;
   color: var(--ink);
   background:
-    radial-gradient(circle at top, rgba(59, 130, 246, 0.08), transparent 32%),
-    linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%);
-  font-family: inherit;
-  overflow-x: hidden;
+    linear-gradient(to bottom, rgba(248, 249, 245, 0.98) 0%, rgba(244, 246, 242, 0.84) 36%, rgba(240, 244, 240, 0.62) 70%, rgba(235, 241, 238, 0.32) 100%),
+    radial-gradient(1100px 480px at 12% -8%, rgba(226, 95, 52, 0.24), transparent 60%),
+    radial-gradient(980px 420px at 82% 12%, rgba(78, 169, 106, 0.2), transparent 62%),
+    radial-gradient(760px 420px at 50% 0%, rgba(90, 148, 204, 0.19), transparent 58%),
+    linear-gradient(to bottom, rgba(31, 45, 47, 0.05) 1px, transparent 1px),
+    linear-gradient(to right, rgba(31, 45, 47, 0.05) 1px, transparent 1px);
+  background-size: auto, auto, auto, auto, 28px 28px, 28px 28px;
+  background-color: var(--bg);
+  font-family: "IBM Plex Mono", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: auto;
 }
 
 html.dark body {
   background:
-    radial-gradient(circle at top, rgba(96, 165, 250, 0.14), transparent 28%),
-    linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%);
+    linear-gradient(to bottom, rgba(36, 52, 65, 0.98) 0%, rgba(43, 62, 77, 0.94) 38%, rgba(47, 68, 82, 0.92) 72%, rgba(31, 46, 59, 0.98) 100%),
+    radial-gradient(1100px 480px at 12% -8%, rgba(226, 95, 52, 0.22), transparent 60%),
+    radial-gradient(980px 420px at 82% 12%, rgba(78, 169, 106, 0.17), transparent 62%),
+    radial-gradient(760px 420px at 50% 0%, rgba(90, 148, 204, 0.18), transparent 58%),
+    linear-gradient(to bottom, rgba(244, 241, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to right, rgba(244, 241, 255, 0.05) 1px, transparent 1px);
 }
 
 h1,
@@ -68,10 +83,11 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: inherit;
-  letter-spacing: -0.035em;
-  line-height: 1.04;
   margin: 0;
+  color: var(--ink);
+  font-family: "JetBrains Mono", "IBM Plex Mono", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-weight: 700;
+  letter-spacing: -0.03em;
 }
 
 a {
@@ -94,20 +110,12 @@ textarea {
 input:focus,
 select:focus,
 textarea:focus {
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14);
+  box-shadow: 0 0 0 4px rgba(90, 148, 204, 0.18);
 }
 
 code,
 pre {
-  font-family:
-    ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    Monaco,
-    Consolas,
-    "Liberation Mono",
-    "Courier New",
-    monospace;
+  font-family: inherit;
 }
 
 .cinema-page {
@@ -119,61 +127,87 @@ pre {
   z-index: 1;
 }
 
-.cinema-title,
+.cinema-title {
+  opacity: 0;
+  transform: translateY(24px);
+  animation: titleFadeUp 900ms ease forwards;
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.8),
+    0 16px 34px rgba(74, 143, 207, 0.16);
+  text-wrap: balance;
+}
+
+html.dark .cinema-title {
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08),
+    0 16px 30px rgba(0, 0, 0, 0.26);
+}
+
 .cinema-display {
   text-wrap: balance;
 }
 
 .cinema-kicker {
-  letter-spacing: 0.08em;
+  letter-spacing: 0.3em;
   text-transform: uppercase;
 }
 
-.cinema-banner::after,
-.hero-grid,
-.hero-grid::before,
-.orb,
-body::before {
-  display: none;
-}
-
-.panel,
-.panel-strong {
+.panel {
   position: relative;
   overflow: hidden;
-  border: 1px solid var(--line);
+  background: linear-gradient(155deg, rgba(255, 253, 248, 0.96) 0%, rgba(245, 241, 230, 0.96) 100%);
+  border: 1px solid rgba(74, 143, 207, 0.3);
   box-shadow: var(--shadow);
   backdrop-filter: blur(10px);
 }
 
-.panel {
-  background: var(--surface);
+.panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.34), transparent 38%),
+    radial-gradient(circle at top right, rgba(78, 169, 106, 0.08), transparent 28%);
 }
 
 .panel-strong {
-  background: var(--surface-strong);
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(30, 24, 46, 0.98) 0%, rgba(24, 20, 40, 0.98) 100%);
+  border: 1px solid rgba(255, 140, 211, 0.22);
+  box-shadow: var(--shadow);
+  color: #f4f1ff;
 }
 
-html.dark .panel {
-  background: var(--surface);
-}
-
-html.dark .panel-strong {
-  background: var(--surface-strong);
-}
-
-.panel::before,
 .panel-strong::before {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 26%);
+  background:
+    radial-gradient(circle at top right, rgba(90, 148, 204, 0.22), transparent 34%),
+    radial-gradient(circle at bottom left, rgba(226, 95, 52, 0.14), transparent 30%);
 }
 
-html.dark .panel::before,
-html.dark .panel-strong::before {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 22%);
+.panel-strong h1,
+.panel-strong h2,
+.panel-strong h3,
+.panel-strong h4,
+.panel-strong h5,
+.panel-strong h6 {
+  color: #f9f6ff;
+}
+
+html.dark .panel {
+  background: linear-gradient(155deg, rgba(45, 59, 70, 0.94) 0%, rgba(35, 48, 60, 0.96) 100%);
+  border-color: rgba(124, 178, 225, 0.24);
+}
+
+html.dark .panel::before {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.05), transparent 38%),
+    radial-gradient(circle at top right, rgba(90, 148, 204, 0.12), transparent 28%);
 }
 
 .muted {
@@ -181,38 +215,55 @@ html.dark .panel-strong::before {
 }
 
 .pill-button {
-  border-radius: 999px;
   border: 1px solid transparent;
+  cursor: pointer;
   transition:
-    background-color 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease,
-    box-shadow 160ms ease,
-    opacity 160ms ease;
+    transform 0.12s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    opacity 0.2s ease;
 }
 
 .pill-button:hover {
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.1);
 }
 
 .danger-panel {
-  border: 1px solid rgba(220, 38, 38, 0.16);
-  background: rgba(254, 226, 226, 0.6);
+  border: 1px solid rgba(191, 62, 42, 0.24);
+  background: rgba(191, 62, 42, 0.08);
   color: var(--danger);
 }
 
 .danger-button {
-  border: 1px solid rgba(220, 38, 38, 0.18);
-  background: rgba(254, 226, 226, 0.72);
+  border: 1px solid rgba(191, 62, 42, 0.24);
+  background: rgba(191, 62, 42, 0.08);
   color: var(--danger);
 }
 
 html.dark .danger-panel {
-  border-color: rgba(248, 113, 113, 0.24);
-  background: rgba(127, 29, 29, 0.3);
+  border-color: rgba(255, 142, 123, 0.32);
+  background: rgba(191, 62, 42, 0.14);
 }
 
 html.dark .danger-button {
-  border-color: rgba(248, 113, 113, 0.24);
-  background: rgba(127, 29, 29, 0.28);
+  border-color: rgba(255, 142, 123, 0.32);
+  background: rgba(191, 62, 42, 0.12);
+}
+
+@keyframes titleFadeUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }

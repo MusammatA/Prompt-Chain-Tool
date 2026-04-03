@@ -32,7 +32,7 @@ export function ThemeModeToggle({ value, onChange }: ThemeModeToggleProps) {
             onClick={() => onChange(option.value)}
             className={`pill-button inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium ${
               active
-                ? "bg-[var(--brand)] text-white"
+                ? "bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] text-white"
                 : "bg-transparent text-[var(--ink-soft)] hover:bg-[var(--surface-strong)]"
             }`}
           >

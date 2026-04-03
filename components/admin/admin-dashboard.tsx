@@ -67,7 +67,7 @@ export function AdminDashboard({ adminEmail }: AdminDashboardProps) {
             <div className="space-y-3">
               <div className="cinema-kicker text-xs font-medium text-[var(--ink-soft)]">Humor Studio</div>
               <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-3xl font-semibold text-[var(--ink)] sm:text-4xl">Build and test flavors</h1>
+                <h1 className="cinema-display text-3xl font-semibold text-[var(--ink)] sm:text-4xl">Build and test flavors</h1>
                 <div className="rounded-full border border-[var(--line)] bg-[var(--surface-muted)] px-3 py-1 text-xs text-[var(--ink-soft)]">
                   {adminEmail || "Administrator"}
                 </div>
@@ -100,7 +100,7 @@ export function AdminDashboard({ adminEmail }: AdminDashboardProps) {
                   onClick={() => setActiveTab(tab.id)}
                   className={`pill-button inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold ${
                     active
-                      ? "bg-[var(--brand)] text-white"
+                      ? "bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] text-white shadow-panel"
                       : "border border-[var(--line)] bg-[var(--surface-muted)] text-[var(--ink)] hover:bg-[var(--surface-strong)]"
                   }`}
                 >
