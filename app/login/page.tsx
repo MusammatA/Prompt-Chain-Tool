@@ -122,49 +122,61 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="cinema-page relative min-h-screen overflow-hidden px-6 py-10 sm:px-10">
-      <div className="orb orb-a" aria-hidden />
-      <div className="orb orb-b" aria-hidden />
-      <div className="orb orb-c" aria-hidden />
-      <div className="hero-grid" aria-hidden />
-
-      <section className="relative mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-3xl items-center justify-center">
-        <div className="flex w-full flex-col items-center gap-6 text-center">
-          <article className="panel w-full rounded-[1.75rem] p-8 shadow-panel sm:p-10">
-            <div className="cinema-kicker inline-flex items-center justify-center gap-2 rounded-full border border-[var(--line)] bg-[rgba(90,148,204,0.08)] px-4 py-2 text-xs text-[var(--brand-3)]">
-              Humor Studio
+    <main className="cinema-page min-h-screen px-6 py-10 sm:px-10">
+      <section className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-5xl items-center justify-center">
+        <div className="w-full space-y-6">
+          <header className="space-y-4 text-center">
+            <div className="inline-flex items-center rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 py-2 text-xs font-medium uppercase tracking-[0.08em] text-[var(--ink-soft)]">
+              Prompt Chain Tool
             </div>
-            <h1 className="cinema-title mt-6 text-5xl font-semibold text-[var(--ink)] sm:text-6xl">
-              Build humor flavors.
-            </h1>
-            <div className="mx-auto mt-6 max-w-xl rounded-[1.35rem] border border-[var(--line)] bg-[var(--surface-muted)] px-5 py-4 text-sm leading-6 text-[var(--ink-soft)]">
-              Create flavor chains, edit prompt steps, and test captions on images.
+            <h1 className="text-4xl font-semibold text-[var(--ink)] sm:text-5xl">Write something actually funny.</h1>
+            <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-[var(--ink-soft)]">
+              <span className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5">Build flavors</span>
+              <span className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5">Test captions</span>
+              <span className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5">Review runs</span>
             </div>
-          </article>
+          </header>
 
-          <aside className="panel-strong w-full max-w-xl rounded-[1.75rem] p-8 text-center shadow-glow sm:p-10">
-            <div className="rounded-[1.35rem] border border-[var(--line)] bg-[var(--surface-muted)] p-5 text-center">
-              <div className="cinema-kicker text-xs text-[var(--ink-soft)]">Admin Login</div>
-              <h2 className="cinema-display mt-3 text-3xl font-semibold">Google</h2>
-            </div>
+          <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_380px]">
+            <article className="panel rounded-[1.5rem] p-6 sm:p-8">
+              <div className="cinema-kicker text-xs font-medium text-[var(--ink-soft)]">Examples</div>
+              <div className="mt-4 space-y-4">
+                <div className="rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface-muted)] p-4 text-left text-sm leading-6 text-[var(--ink)]">
+                  “They said they wanted a better fit. I already rewrote my personality twice.”
+                </div>
+                <div className="rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface-muted)] p-4 text-left text-sm leading-6 text-[var(--ink)]">
+                  “I’m not failing. I’m exploring alternative academic outcomes.”
+                </div>
+              </div>
+            </article>
 
-            {checkingSession ? (
-              <p className="mt-6 rounded-[1.3rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-3 text-center text-sm text-[var(--ink-soft)]">
-                Checking your current session...
-              </p>
-            ) : null}
+            <aside className="panel-strong rounded-[1.5rem] p-6 sm:p-8">
+              <div className="space-y-2">
+                <div className="cinema-kicker text-xs font-medium text-[var(--ink-soft)]">Admin Login</div>
+                <h2 className="text-2xl font-semibold text-[var(--ink)]">Continue with Google</h2>
+                <div className="rounded-[1rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-3 text-sm text-[var(--ink-soft)]">
+                  Build flavors. Edit steps. Test image captions.
+                </div>
+              </div>
 
-            {errorMessage ? <p className="danger-panel mt-6 rounded-[1.3rem] px-4 py-3 text-center text-sm">{errorMessage}</p> : null}
+              {checkingSession ? (
+                <p className="mt-5 rounded-[1rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-3 text-sm text-[var(--ink-soft)]">
+                  Checking your session...
+                </p>
+              ) : null}
 
-            <button
-              type="button"
-              onClick={handleLogin}
-              disabled={signingIn}
-              className="pill-button mt-8 inline-flex w-full items-center justify-center gap-3 rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] px-6 py-4 text-base font-semibold text-white shadow-glow disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              {signingIn ? "Redirecting to Google..." : "Sign in with Google"}
-            </button>
-          </aside>
+              {errorMessage ? <p className="danger-panel mt-5 rounded-[1rem] px-4 py-3 text-sm">{errorMessage}</p> : null}
+
+              <button
+                type="button"
+                onClick={handleLogin}
+                disabled={signingIn}
+                className="pill-button mt-6 inline-flex w-full items-center justify-center rounded-full bg-[var(--brand)] px-6 py-4 text-base font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {signingIn ? "Redirecting..." : "Sign in with Google"}
+              </button>
+            </aside>
+          </div>
         </div>
       </section>
     </main>
