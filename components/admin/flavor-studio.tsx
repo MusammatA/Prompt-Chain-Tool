@@ -70,6 +70,13 @@ type LatestRunState = RunFlavorResult & {
   storageWarning?: string;
 };
 
+type StarterStep = {
+  title: string;
+  instruction: string;
+  system_prompt?: string;
+  output_label?: string;
+};
+
 const EMPTY_FLAVOR_DRAFT: FlavorDraft = {
   name: "",
   slug: "",
@@ -149,6 +156,41 @@ function defaultNewFlavorDraft() {
   };
 }
 
+function isColumbiaStudentFlavorValue(name?: string | null, slug?: string | null) {
+  const normalizedName = String(name || "").trim().toLowerCase();
+  const normalizedSlug = String(slug || "").trim().toLowerCase();
+  return normalizedName === "columbia student" || normalizedSlug === "columbia-student";
+}
+
+function buildColumbiaStarterSteps(): StarterStep[] {
+  return [
+    {
+      title: "Read the image",
+      output_label: "image_read",
+      system_prompt:
+        "Describe what is visibly present in the image. Stay grounded in expressions, posture, objects, clothing, setting, and social dynamics.",
+      instruction:
+        "Look at the image and write a concise read of what is happening. Focus on facial expression, emotion, body language, awkwardness, tension, confidence, chaos, or exhaustion. If the image is vague, infer the strongest likely mood from the most obvious visual details.",
+    },
+    {
+      title: "Connect it to Columbia",
+      output_label: "columbia_angle",
+      system_prompt:
+        "Make the joke feel relatable to Columbia student life without requiring the image to contain Columbia logos or explicit campus markers.",
+      instruction:
+        "Take the image read and connect it to a Columbia-style student situation. Use emotional or situational parallels like finals, Butler, Core readings, office hours, group projects, dorm life, recruiting, overachieving, sleep deprivation, weather, clubs, or social awkwardness. Choose the strongest emotional connection and turn it into a funny angle.",
+    },
+    {
+      title: "Write captions",
+      output_label: "captions",
+      system_prompt:
+        "Write short captions that sound specific, human, and funny. Prioritize the emotional match over literal campus references.",
+      instruction:
+        "Using the Columbia angle, write five short funny captions. The image does not need a Columbia logo or explicit campus sign. It is enough if the expression, mood, or situation feels like something a Columbia student would say, fear, or experience.",
+    },
+  ];
+}
+
 export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
   const [bootstrapping, setBootstrapping] = useState(true);
   const [loadingFlavorData, setLoadingFlavorData] = useState(false);
@@ -178,6 +220,10 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
   const [latestRun, setLatestRun] = useState<LatestRunState | null>(null);
 
   const selectedFlavor = flavors.find((item) => item.id === selectedFlavorId) ?? null;
+  const isColumbiaStudentFlavor = isColumbiaStudentFlavorValue(
+    flavorDraft.name || selectedFlavor?.name,
+    flavorDraft.slug || selectedFlavor?.slug,
+  );
   const usesLegacyFlavorSchema =
     selectedFlavor?.schema_variant === "legacy" || (!selectedFlavor && PREFER_LEGACY_HUMOR_SCHEMA);
   const selectedImage = images.find((item) => item.id === selectedImageId) ?? null;
@@ -447,6 +493,61 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
       setFlashMessage("Saved the new step. Add more, reorder them, then continue to the tester.");
     } catch (error) {
       setGlobalError(getErrorMessage(error));
+    } finally {
+      setStepActionId("");
+    }
+  }
+
+  async function handleApplyColumbiaStarter() {
+    if (!isColumbiaStudentFlavor) {
+      setGlobalError('The Columbia starter is only for the "Columbia Student" flavor.');
+      return;
+    }
+
+    if (!selectedFlavorId) {
+      setGlobalError("Save the flavor basics before adding starter steps.");
+      onTabChange("flavor");
+      return;
+    }
+
+    if (orderedSteps.length > 0 && !window.confirm("Replace the current steps with the Columbia starter template?")) {
+      return;
+    }
+
+    setStepActionId("starter-template");
+    setGlobalError("");
+    setFlashMessage("");
+
+    try {
+      if (orderedSteps.length > 0) {
+        for (const step of orderedSteps) {
+          await deleteHumorFlavorStep(step.id);
+        }
+      }
+
+      const createdSteps: HumorFlavorStep[] = [];
+      const starterSteps = buildColumbiaStarterSteps();
+
+      for (let index = 0; index < starterSteps.length; index += 1) {
+        const starter = starterSteps[index];
+        const created = await createHumorFlavorStep({
+          humor_flavor_id: selectedFlavorId,
+          title: starter.title,
+          instruction: starter.instruction,
+          system_prompt: starter.system_prompt || "",
+          output_label: starter.output_label || "",
+          step_order: index + 1,
+        });
+        createdSteps.push(created);
+      }
+
+      setSteps(createdSteps);
+      setSelectedStepId(createdSteps[0]?.id || "");
+      setNewStepDraft({ ...EMPTY_STEP_DRAFT });
+      setFlashMessage("Loaded the Columbia starter. It now reads emotion, finds a Columbia parallel, and writes captions from that angle.");
+    } catch (error) {
+      setGlobalError(getErrorMessage(error));
+      await loadFlavorData(selectedFlavorId);
     } finally {
       setStepActionId("");
     }
@@ -924,6 +1025,11 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
         )}
 
         <section className="panel rounded-[1.6rem] p-4 sm:p-5">
+          {isColumbiaStudentFlavor ? (
+            <div className="mb-4 rounded-[1.2rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-3 text-sm text-[var(--ink-soft)]">
+              Let the model map expressions, body language, and scene energy to Columbia student life. The image does not need a Columbia logo.
+            </div>
+          ) : null}
           <div className="grid gap-4 md:grid-cols-2">
             <label className="space-y-2">
               <span className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Flavor name</span>
@@ -993,6 +1099,17 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
           </div>
 
           <div className="mt-6 flex flex-wrap gap-3">
+            {!selectedFlavorId || isCreatingFlavor || !isColumbiaStudentFlavor ? null : (
+              <button
+                type="button"
+                onClick={() => void handleApplyColumbiaStarter()}
+                disabled={stepActionId === "starter-template" || savingFlavor}
+                className="pill-button inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-muted)] px-5 py-3 text-sm font-semibold text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {stepActionId === "starter-template" ? <Loader2 className="h-4 w-4 animate-spin" /> : <WandSparkles className="h-4 w-4" />}
+                Use Columbia starter
+              </button>
+            )}
             <button
               type="button"
               onClick={() => void handleSaveFlavor()}
@@ -1053,6 +1170,23 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
             ) : null}
           </div>
 
+          {isColumbiaStudentFlavor ? (
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => void handleApplyColumbiaStarter()}
+                disabled={stepActionId === "starter-template"}
+                className="pill-button inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-3 text-sm font-semibold text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {stepActionId === "starter-template" ? <Loader2 className="h-4 w-4 animate-spin" /> : <WandSparkles className="h-4 w-4" />}
+                Load Columbia starter
+              </button>
+              <p className="flex items-center text-sm text-[var(--ink-soft)]">
+                Use emotion and situation, not just literal campus references.
+              </p>
+            </div>
+          ) : null}
+
           <div className="mt-6 space-y-4">
             {selectedStep ? (
               <>
@@ -1100,7 +1234,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                 <input
                   value={newStepDraft.title}
                   onChange={(event) => setNewStepDraft((current) => ({ ...current, title: event.target.value }))}
-                  placeholder="Describe the image"
+                  placeholder={isColumbiaStudentFlavor ? "Read the image" : "Describe the image"}
                   className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
                 />
               </label>
@@ -1114,7 +1248,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                   <input
                     value={newStepDraft.output_label}
                     onChange={(event) => setNewStepDraft((current) => ({ ...current, output_label: event.target.value }))}
-                    placeholder="funny_take"
+                    placeholder={isColumbiaStudentFlavor ? "columbia_angle" : "funny_take"}
                     className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
                   />
                 </label>
@@ -1127,7 +1261,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                   value={newStepDraft.system_prompt}
                   onChange={(event) => setNewStepDraft((current) => ({ ...current, system_prompt: event.target.value }))}
                   rows={4}
-                  placeholder="Optional"
+                  placeholder={isColumbiaStudentFlavor ? "Guide the model toward emotions, posture, or social tension." : "Optional"}
                   className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
                 />
               </label>
@@ -1140,7 +1274,11 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                 value={newStepDraft.instruction}
                 onChange={(event) => setNewStepDraft((current) => ({ ...current, instruction: event.target.value }))}
                 rows={4}
-                placeholder="Take the output from step 1 and say something funny about it."
+                placeholder={
+                  isColumbiaStudentFlavor
+                    ? "Take the image mood and connect it to something a Columbia student would say or feel, even if the image has no Columbia logo."
+                    : "Take the output from step 1 and say something funny about it."
+                }
                 className="w-full rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 outline-none transition focus:border-[var(--brand)]"
               />
             </label>
