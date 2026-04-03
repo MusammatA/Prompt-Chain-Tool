@@ -287,6 +287,8 @@ function shouldRetryWithLegacyPayload(error: unknown) {
   return (
     /(^|\s)(500|502|503|504):/.test(message) ||
     /server error/i.test(message) ||
+    /timed out/i.test(message) ||
+    /timeout/i.test(message) ||
     /unexpected token/i.test(message) ||
     /non-json response/i.test(message) ||
     /html error page/i.test(message)
