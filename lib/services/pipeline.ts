@@ -56,10 +56,11 @@ type GenerateCaptionsResponseCandidate =
 const PRESIGNED_URL_TIMEOUT_MS = 20_000;
 const IMAGE_UPLOAD_TIMEOUT_MS = 90_000;
 const IMAGE_REGISTER_TIMEOUT_MS = 45_000;
-const GENERATE_CAPTIONS_TIMEOUT_MS = 180_000;
+const GENERATE_CAPTIONS_TIMEOUT_MS = 30_000;
 const SCHEDULED_CAPTION_POLL_TIMEOUT_MS = 90_000;
 const SCHEDULED_CAPTION_POLL_INTERVAL_MS = 4_000;
 const RECOVERY_ROUTE_TIMEOUT_MS = 15_000;
+const EARLY_RECOVERY_POLL_TIMEOUT_MS = 18_000;
 
 type ErrorEnvelope = {
   message?: string | null;
@@ -369,8 +370,13 @@ async function fetchRecoveryCaptionRowsForFlavor(humorFlavorId: string, limit = 
   return Array.isArray(payload?.rows) ? payload.rows : [];
 }
 
-async function pollForScheduledCaptions(humorFlavorId: string, imageId: string, baselineCaptionIds: Set<string>) {
-  const deadline = Date.now() + SCHEDULED_CAPTION_POLL_TIMEOUT_MS;
+async function pollForScheduledCaptions(
+  humorFlavorId: string,
+  imageId: string,
+  baselineCaptionIds: Set<string>,
+  timeoutMs = SCHEDULED_CAPTION_POLL_TIMEOUT_MS,
+) {
+  const deadline = Date.now() + timeoutMs;
   const requestStartedAtMs = Date.now();
 
   while (Date.now() < deadline) {
@@ -498,7 +504,7 @@ async function registerRemoteImage(accessToken: string, imageUrl: string): Promi
   };
 }
 
-async function requestGeneratedCaptions(options: {
+async function requestGeneratedCaptionsFromApi(options: {
   accessToken: string;
   payload: GenerateCaptionsPayload;
   imageId: string;
@@ -575,6 +581,66 @@ async function requestGeneratedCaptions(options: {
   } satisfies RunFlavorResult;
 }
 
+function createEarlyRecoveryAttempt(options: {
+  payload: GenerateCaptionsPayload;
+  imageId: string;
+  imageUrl: string;
+  flavorId: string;
+  baselineCaptionIds: Set<string>;
+}) {
+  const { payload, imageId, imageUrl, flavorId, baselineCaptionIds } = options;
+
+  return new Promise<RunFlavorResult>((resolve) => {
+    void pollForScheduledCaptions(flavorId, imageId, baselineCaptionIds, EARLY_RECOVERY_POLL_TIMEOUT_MS)
+      .then((scheduledResult) => {
+        if (!scheduledResult) return;
+
+        resolve({
+          requestPayload: payload,
+          responsePayload: scheduledResult.responsePayload,
+          captions: scheduledResult.captions,
+          modelTag: "scheduled-caption-fallback",
+          imageId,
+          imageUrl,
+        } satisfies RunFlavorResult);
+      })
+      .catch(() => {
+        // Ignore recovery polling errors here and let the main API attempt decide the result.
+      });
+  });
+}
+
+async function requestGeneratedCaptions(options: {
+  accessToken: string;
+  payload: GenerateCaptionsPayload;
+  imageId: string;
+  imageUrl: string;
+  flavorId: string;
+  baselineCaptionIds: Set<string>;
+}) {
+  const apiAttempt = requestGeneratedCaptionsFromApi(options);
+  const recoveryAttempt = createEarlyRecoveryAttempt(options);
+
+  const result = await Promise.race([
+    apiAttempt.then(
+      (value) => ({ kind: "api" as const, value }),
+      (error) => ({ kind: "error" as const, error }),
+    ),
+    recoveryAttempt.then((value) => ({ kind: "recovery" as const, value })),
+  ]);
+
+  if (result.kind === "recovery") {
+    void apiAttempt.catch(() => undefined);
+    return result.value;
+  }
+
+  if (result.kind === "api") {
+    return result.value;
+  }
+
+  throw result.error;
+}
+
 export async function runFlavorPromptChain(request: RunFlavorRequest): Promise<RunFlavorResult> {
   const { accessToken, flavor, steps, selectedImage, manualImageUrl, uploadFile } = request;
   const orderedSteps = [...steps].sort((a, b) => a.step_order - b.step_order);
@@ -635,6 +701,23 @@ export async function runFlavorPromptChain(request: RunFlavorRequest): Promise<R
   } catch (primaryError) {
     if (!shouldRetryWithLegacyPayload(primaryError)) {
       throw primaryError;
+    }
+
+    const recoveredPrimaryResult = await pollForScheduledCaptions(
+      flavor.id,
+      imageId,
+      baselineCaptionIds,
+      10_000,
+    );
+    if (recoveredPrimaryResult) {
+      return {
+        requestPayload,
+        responsePayload: recoveredPrimaryResult.responsePayload,
+        captions: recoveredPrimaryResult.captions,
+        modelTag: "scheduled-caption-fallback",
+        imageId,
+        imageUrl,
+      };
     }
 
     const legacyPayload = { imageId };
