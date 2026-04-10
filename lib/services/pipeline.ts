@@ -24,6 +24,7 @@ type RunFlavorRequest = {
   selectedImage?: ImageTestRecord | null;
   manualImageUrl?: string;
   uploadFile?: File | null;
+  onStatus?: (message: string) => void;
 };
 
 type PipelineStepPayload = {
@@ -644,7 +645,7 @@ async function requestGeneratedCaptions(options: {
 }
 
 export async function runFlavorPromptChain(request: RunFlavorRequest): Promise<RunFlavorResult> {
-  const { accessToken, flavor, steps, selectedImage, manualImageUrl, uploadFile } = request;
+  const { accessToken, flavor, steps, selectedImage, manualImageUrl, uploadFile, onStatus } = request;
   const orderedSteps = [...steps].sort((a, b) => a.step_order - b.step_order);
   const pipelineSteps = normalizePipelineSteps(orderedSteps);
 
@@ -656,14 +657,17 @@ export async function runFlavorPromptChain(request: RunFlavorRequest): Promise<R
   let imageUrl = getImageUrl(selectedImage);
 
   if (uploadFile) {
+    onStatus?.("Uploading image");
     const uploaded = await uploadFileToPipeline(accessToken, uploadFile);
     imageId = uploaded.imageId;
     imageUrl = uploaded.imageUrl;
   } else if (manualImageUrl?.trim()) {
+    onStatus?.("Registering image URL");
     const registered = await registerRemoteImage(accessToken, manualImageUrl.trim());
     imageId = registered.imageId;
     imageUrl = registered.imageUrl;
   } else if (imageUrl) {
+    onStatus?.("Registering selected image");
     const registered = await registerRemoteImage(accessToken, imageUrl);
     imageId = registered.imageId;
     imageUrl = registered.imageUrl;
@@ -675,6 +679,7 @@ export async function runFlavorPromptChain(request: RunFlavorRequest): Promise<R
 
   let baselineCaptionIds = new Set<string>();
   try {
+    onStatus?.("Checking saved captions");
     const baselineRows = await fetchRecoveryCaptionRowsForFlavor(flavor.id, 40);
     baselineCaptionIds = new Set(
       baselineRows.map((row) => String(row.id || "").trim()).filter(Boolean),
@@ -692,6 +697,7 @@ export async function runFlavorPromptChain(request: RunFlavorRequest): Promise<R
   };
 
   try {
+    onStatus?.("Running flavor");
     return await requestGeneratedCaptions({
       accessToken,
       payload: requestPayload,
@@ -712,6 +718,7 @@ export async function runFlavorPromptChain(request: RunFlavorRequest): Promise<R
       10_000,
     );
     if (recoveredPrimaryResult) {
+      onStatus?.("Recovered saved captions");
       return {
         requestPayload,
         responsePayload: recoveredPrimaryResult.responsePayload,
@@ -723,6 +730,7 @@ export async function runFlavorPromptChain(request: RunFlavorRequest): Promise<R
     }
 
     const legacyPayload = { imageId };
+    onStatus?.("Retrying simple caption mode");
     const legacyResult = await requestGeneratedCaptions({
       accessToken,
       payload: legacyPayload,

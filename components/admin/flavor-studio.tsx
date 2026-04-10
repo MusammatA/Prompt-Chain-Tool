@@ -3,15 +3,18 @@
 import {
   ArrowLeft,
   ArrowRight,
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
+  Clipboard,
+  Copy,
   Loader2,
   Plus,
   RefreshCw,
   Search,
   Save,
   Sparkles,
-  TestTube2,
+  Star,
   Trash2,
   WandSparkles,
 } from "lucide-react";
@@ -75,6 +78,14 @@ type StarterStep = {
   instruction: string;
   system_prompt?: string;
   output_label?: string;
+};
+
+type StarterTemplate = {
+  id: string;
+  label: string;
+  description: string;
+  steps: StarterStep[];
+  columbiaOnly?: boolean;
 };
 
 const EMPTY_FLAVOR_DRAFT: FlavorDraft = {
@@ -191,6 +202,91 @@ function buildColumbiaStarterSteps(): StarterStep[] {
   ];
 }
 
+const STARTER_TEMPLATES: StarterTemplate[] = [
+  {
+    id: "roast",
+    label: "Roast",
+    description: "A blunt but not mean caption chain.",
+    steps: [
+      {
+        title: "Read the scene",
+        output_label: "scene_read",
+        system_prompt: "Describe the visible image plainly. Mention the strongest object, expression, pose, or situation.",
+        instruction: "Write a short, literal description of the image. If the image is vague, focus on the most obvious visual detail.",
+      },
+      {
+        title: "Find the flaw",
+        output_label: "roast_angle",
+        system_prompt: "Find a playful flaw, contradiction, or awkward detail. Keep it funny without being cruel.",
+        instruction: "Turn the image description into one sharp comedic angle. Make the joke about the situation, not about protected traits.",
+      },
+      {
+        title: "Write captions",
+        output_label: "captions",
+        system_prompt: "Write short captions that sound like a person making a quick joke.",
+        instruction: "Write five short roast-style captions. Keep them specific to the image and easy to read.",
+      },
+    ],
+  },
+  {
+    id: "awkward",
+    label: "Awkward",
+    description: "Turns social tension into captions.",
+    steps: [
+      {
+        title: "Spot the tension",
+        output_label: "awkward_read",
+        system_prompt: "Look for facial expression, spacing, body language, objects, and social dynamics.",
+        instruction: "Describe what feels awkward, tense, overconfident, underprepared, or socially strange in the image.",
+      },
+      {
+        title: "Name the vibe",
+        output_label: "vibe",
+        system_prompt: "Translate the scene into a relatable everyday feeling.",
+        instruction: "Turn the image into a relatable human moment, like trying too hard, pretending to understand, or being caught off guard.",
+      },
+      {
+        title: "Write captions",
+        output_label: "captions",
+        system_prompt: "Keep captions short, conversational, and a little dry.",
+        instruction: "Write five captions based on the awkward vibe. Avoid explaining the joke.",
+      },
+    ],
+  },
+  {
+    id: "academic-stress",
+    label: "Academic Stress",
+    description: "Maps any image to school pressure.",
+    steps: [
+      {
+        title: "Read emotion",
+        output_label: "emotion",
+        system_prompt: "Focus on mood, posture, energy, and any sign of panic, confusion, pride, boredom, or exhaustion.",
+        instruction: "Describe the strongest emotion or energy in the image, even if the actual scene is simple.",
+      },
+      {
+        title: "Make it school",
+        output_label: "school_angle",
+        system_prompt: "Connect the image mood to studying, deadlines, exams, group work, grades, office hours, or academic overthinking.",
+        instruction: "Turn the image emotion into a school-life situation that feels familiar and funny.",
+      },
+      {
+        title: "Write captions",
+        output_label: "captions",
+        system_prompt: "Write captions that feel like student humor, not a formal explanation.",
+        instruction: "Write five short captions. They should sound specific, stressed, and funny.",
+      },
+    ],
+  },
+  {
+    id: "columbia-student",
+    label: "Columbia Student",
+    description: "Only for the Columbia Student flavor.",
+    steps: buildColumbiaStarterSteps(),
+    columbiaOnly: true,
+  },
+];
+
 export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
   const [bootstrapping, setBootstrapping] = useState(true);
   const [loadingFlavorData, setLoadingFlavorData] = useState(false);
@@ -218,6 +314,10 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
   const [runningTest, setRunningTest] = useState(false);
   const [runError, setRunError] = useState("");
   const [latestRun, setLatestRun] = useState<LatestRunState | null>(null);
+  const [generationStatus, setGenerationStatus] = useState("");
+  const [generationLog, setGenerationLog] = useState<string[]>([]);
+  const [copiedCaptionKey, setCopiedCaptionKey] = useState("");
+  const [favoriteCaptionKeys, setFavoriteCaptionKeys] = useState<Set<string>>(() => new Set());
 
   const selectedFlavor = flavors.find((item) => item.id === selectedFlavorId) ?? null;
   const isColumbiaStudentFlavor = isColumbiaStudentFlavorValue(
@@ -254,6 +354,51 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
     orderedSteps.findIndex((step) => step.id === selectedStepId),
   );
   const selectedStep = orderedSteps[selectedStepIndex] ?? null;
+  const availableStarterTemplates = STARTER_TEMPLATES.filter(
+    (template) => !template.columbiaOnly || isColumbiaStudentFlavor,
+  );
+  const hasImageInput = Boolean(selectedImage || manualImageUrl.trim() || uploadFile);
+  const testBlocker = !selectedFlavor
+    ? "Choose or create a flavor first."
+    : orderedSteps.length === 0
+      ? "Add at least one step first."
+      : !hasImageInput
+        ? "Choose an image, paste a URL, or upload a file."
+        : "";
+
+  function markGenerationStatus(message: string) {
+    setGenerationStatus(message);
+    setGenerationLog((current) => {
+      if (current[current.length - 1] === message) return current;
+      return [...current, message].slice(-6);
+    });
+  }
+
+  function getCaptionKey(prefix: string, caption: string, index: number) {
+    return `${prefix}-${index}-${caption.slice(0, 40)}`;
+  }
+
+  async function copyCaption(caption: string, key: string) {
+    try {
+      await navigator.clipboard.writeText(caption);
+      setCopiedCaptionKey(key);
+      window.setTimeout(() => setCopiedCaptionKey((current) => (current === key ? "" : current)), 1600);
+    } catch {
+      setRunError("Could not copy this caption. You can still select and copy it manually.");
+    }
+  }
+
+  function toggleFavoriteCaption(key: string) {
+    setFavoriteCaptionKeys((current) => {
+      const next = new Set(current);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }
 
   async function loadBaseData(preferredFlavorId?: string) {
     setBootstrapping(true);
@@ -462,6 +607,56 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
     }
   }
 
+  async function handleDuplicateFlavor(flavor: HumorFlavor) {
+    setSavingFlavor(true);
+    setGlobalError("");
+    setFlashMessage("");
+
+    try {
+      const sourceSteps = await fetchHumorFlavorSteps(flavor.id);
+      const copyName = `${flavor.name} Copy`;
+      const copiedFlavor = await createHumorFlavor({
+        name: copyName,
+        slug: `${slugify(flavor.slug || flavor.name || "flavor")}-copy-${Date.now().toString().slice(-5)}`,
+        description: flavor.description || "",
+        notes: flavor.notes || "",
+        status: "draft",
+      });
+
+      const createdSteps: HumorFlavorStep[] = [];
+      const orderedSourceSteps = [...sourceSteps].sort((a, b) => a.step_order - b.step_order);
+      for (let index = 0; index < orderedSourceSteps.length; index += 1) {
+        const sourceStep = orderedSourceSteps[index];
+        const created = await createHumorFlavorStep({
+          humor_flavor_id: copiedFlavor.id,
+          title: sourceStep.title,
+          instruction: sourceStep.instruction,
+          system_prompt: sourceStep.system_prompt || "",
+          output_label: sourceStep.output_label || "",
+          step_order: index + 1,
+          llm_input_type_id: sourceStep.llm_input_type_id || undefined,
+          llm_output_type_id: sourceStep.llm_output_type_id || undefined,
+          llm_model_id: sourceStep.llm_model_id || undefined,
+          humor_flavor_step_type_id: sourceStep.humor_flavor_step_type_id || undefined,
+          llm_temperature: sourceStep.llm_temperature ?? undefined,
+        });
+        createdSteps.push(created);
+      }
+
+      setSelectedFlavorId(copiedFlavor.id);
+      setIsCreatingFlavor(false);
+      await loadBaseData(copiedFlavor.id);
+      setSteps(createdSteps);
+      await loadFlavorData(copiedFlavor.id);
+      setFlashMessage(`Duplicated ${flavor.name}. You can edit the copy without changing the original.`);
+      onTabChange("steps");
+    } catch (error) {
+      setGlobalError(getErrorMessage(error));
+    } finally {
+      setSavingFlavor(false);
+    }
+  }
+
   async function handleCreateStep() {
     if (!selectedFlavorId) {
       setGlobalError("Save the flavor basics before adding steps.");
@@ -498,8 +693,11 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
     }
   }
 
-  async function handleApplyColumbiaStarter() {
-    if (!isColumbiaStudentFlavor) {
+  async function handleApplyStarterTemplate(templateId: string) {
+    const template = STARTER_TEMPLATES.find((item) => item.id === templateId);
+    if (!template) return;
+
+    if (template.columbiaOnly && !isColumbiaStudentFlavor) {
       setGlobalError('The Columbia starter is only for the "Columbia Student" flavor.');
       return;
     }
@@ -510,11 +708,11 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
       return;
     }
 
-    if (orderedSteps.length > 0 && !window.confirm("Replace the current steps with the Columbia starter template?")) {
+    if (orderedSteps.length > 0 && !window.confirm(`Replace the current steps with the ${template.label} starter?`)) {
       return;
     }
 
-    setStepActionId("starter-template");
+    setStepActionId(`starter-template-${template.id}`);
     setGlobalError("");
     setFlashMessage("");
 
@@ -526,10 +724,9 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
       }
 
       const createdSteps: HumorFlavorStep[] = [];
-      const starterSteps = buildColumbiaStarterSteps();
 
-      for (let index = 0; index < starterSteps.length; index += 1) {
-        const starter = starterSteps[index];
+      for (let index = 0; index < template.steps.length; index += 1) {
+        const starter = template.steps[index];
         const created = await createHumorFlavorStep({
           humor_flavor_id: selectedFlavorId,
           title: starter.title,
@@ -544,13 +741,17 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
       setSteps(createdSteps);
       setSelectedStepId(createdSteps[0]?.id || "");
       setNewStepDraft({ ...EMPTY_STEP_DRAFT });
-      setFlashMessage("Loaded the Columbia starter. It now reads emotion, finds a Columbia parallel, and writes captions from that angle.");
+      setFlashMessage(`Loaded the ${template.label} starter. Review the steps, then test it on an image.`);
     } catch (error) {
       setGlobalError(getErrorMessage(error));
       await loadFlavorData(selectedFlavorId);
     } finally {
       setStepActionId("");
     }
+  }
+
+  async function handleApplyColumbiaStarter() {
+    await handleApplyStarterTemplate("columbia-student");
   }
 
   async function handleSaveStep(step: HumorFlavorStep) {
@@ -811,6 +1012,117 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
     );
   }
 
+  async function refreshArchiveAndFindLatestCaptions(flavorId: string) {
+    const [runData, captionData] = await Promise.all([
+      fetchPromptChainRuns(flavorId),
+      fetchGeneratedFlavorCaptions(flavorId),
+    ]);
+
+    setRuns(runData);
+    setCaptions(captionData);
+    setSelectedRunId(runData[0]?.id || "");
+
+    const latestRunRecord = runData[0] ?? null;
+    const recoveredCaptions = latestRunRecord
+      ? captionData
+          .filter((item) => item.humor_flavor_run_id === latestRunRecord.id)
+          .sort((a, b) => (a.rank_index ?? 999) - (b.rank_index ?? 999))
+          .map((item) => item.caption_text)
+          .filter(Boolean)
+      : captionData
+          .slice(0, 5)
+          .map((item) => item.caption_text)
+          .filter(Boolean);
+
+    return {
+      latestRunRecord,
+      recoveredCaptions,
+    };
+  }
+
+  function renderCaptionCard(caption: string, index: number, keyPrefix: string, rankLabel?: string | number | null) {
+    const key = getCaptionKey(keyPrefix, caption, index);
+    const favorite = favoriteCaptionKeys.has(key);
+    const copied = copiedCaptionKey === key;
+
+    return (
+      <article
+        key={key}
+        className="rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-sm leading-6"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <span className="mr-2 text-xs uppercase tracking-[0.18em] text-[var(--ink-soft)]">
+              #{rankLabel || index + 1}
+            </span>
+            {caption}
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={() => void copyCaption(caption, key)}
+              className="pill-button inline-flex items-center gap-1.5 rounded-full border border-[var(--line)] bg-[var(--surface-muted)] px-3 py-2 text-xs font-semibold text-[var(--ink)]"
+            >
+              {copied ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Clipboard className="h-3.5 w-3.5" />}
+              {copied ? "Copied" : "Copy"}
+            </button>
+            <button
+              type="button"
+              onClick={() => toggleFavoriteCaption(key)}
+              className={`pill-button inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-semibold ${
+                favorite
+                  ? "border-transparent bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] text-white"
+                  : "border-[var(--line)] bg-[var(--surface-muted)] text-[var(--ink)]"
+              }`}
+            >
+              <Star className={`h-3.5 w-3.5 ${favorite ? "fill-current" : ""}`} />
+              {favorite ? "Saved" : "Fav"}
+            </button>
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  function renderLastResultPanel() {
+    if (!latestRun || activeTab === "tester") return null;
+
+    return (
+      <section className="panel rounded-[1.5rem] p-4 sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Last result</p>
+            <h3 className="mt-2 text-xl font-semibold">
+              {latestRun.captions.length} caption{latestRun.captions.length === 1 ? "" : "s"}
+            </h3>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => onTabChange("tester")}
+              className="pill-button rounded-full border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-2 text-xs font-semibold text-[var(--ink)]"
+            >
+              Test again
+            </button>
+            <button
+              type="button"
+              onClick={() => onTabChange("archive")}
+              className="pill-button rounded-full border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-2 text-xs font-semibold text-[var(--ink)]"
+            >
+              Open archive
+            </button>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {latestRun.captions.slice(0, 4).map((caption, index) => renderCaptionCard(caption, index, "last-result"))}
+        </div>
+        {latestRun.storageWarning ? (
+          <p className="danger-panel mt-4 rounded-[1rem] px-3 py-3 text-sm">{latestRun.storageWarning}</p>
+        ) : null}
+      </section>
+    );
+  }
+
   async function handleRunFlavor() {
     if (!selectedFlavor) {
       setRunError("Save or select a humor flavor before testing.");
@@ -824,13 +1136,23 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
       return;
     }
 
+    if (!hasImageInput) {
+      setRunError("Choose an image, paste a URL, or upload a file before generating captions.");
+      return;
+    }
+
     setRunningTest(true);
     setRunError("");
     setFlashMessage("");
     setGlobalError("");
+    setLatestRun(null);
+    setGenerationLog([]);
+    markGenerationStatus("Preparing test");
 
     try {
+      markGenerationStatus("Checking admin session");
       const session = await getCurrentSessionOrThrow();
+      markGenerationStatus(uploadFile ? "Uploading image" : manualImageUrl.trim() ? "Registering image URL" : "Registering selected image");
       const result = await runFlavorPromptChain({
         accessToken: session.access_token,
         flavor: selectedFlavor,
@@ -838,12 +1160,14 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
         selectedImage,
         manualImageUrl,
         uploadFile,
+        onStatus: markGenerationStatus,
       });
 
       let persistedRunId = "";
       let storageWarning = "";
 
       try {
+        markGenerationStatus("Saving run");
         const runRecord = await createPromptChainRun({
           humor_flavor_id: selectedFlavor.id,
           image_id: result.imageId,
@@ -874,6 +1198,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
         storageWarning = getErrorMessage(storageError);
       }
 
+      markGenerationStatus(result.captions.length ? "Captions ready" : "No captions returned");
       setLatestRun({
         ...result,
         persistedRunId,
@@ -888,7 +1213,42 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
       );
       onTabChange("archive");
     } catch (error) {
-      setRunError(getErrorMessage(error));
+      const originalMessage = getErrorMessage(error);
+      markGenerationStatus("Checking saved captions");
+
+      try {
+        const { latestRunRecord, recoveredCaptions } = await refreshArchiveAndFindLatestCaptions(selectedFlavor.id);
+        if (recoveredCaptions.length > 0) {
+          setLatestRun({
+            requestPayload: {
+              mode: "recovered-after-error",
+              originalError: originalMessage,
+            },
+            responsePayload: {
+              generator: "archive-recovery",
+              data: {
+                captions: recoveredCaptions.map((caption_text) => ({ caption_text })),
+              },
+            },
+            captions: recoveredCaptions,
+            modelTag: latestRunRecord?.pipeline_model || "archive-recovery",
+            imageId: latestRunRecord?.image_id || selectedImageId || "",
+            imageUrl: latestRunRecord?.image_url || getImageUrl(selectedImage) || manualImageUrl,
+            persistedRunId: latestRunRecord?.id,
+            storageWarning: `The API response failed, but saved captions were found. Original message: ${originalMessage}`,
+          });
+          markGenerationStatus("Recovered saved captions");
+          setRunError("");
+          setFlashMessage("The API response was slow, but saved captions were recovered.");
+          onTabChange("archive");
+          return;
+        }
+      } catch {
+        // Keep the original API error if recovery also fails.
+      }
+
+      setRunError(originalMessage);
+      setFlashMessage("Still working? Try Archive > Refresh in a few seconds. Some API runs save captions after the request times out.");
     } finally {
       setRunningTest(false);
     }
@@ -955,35 +1315,78 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
               filteredFlavors.map((flavor) => {
                 const active = flavor.id === selectedFlavorId && !isCreatingFlavor;
                 return (
-                  <button
+                  <article
                     key={flavor.id}
-                    type="button"
-                    onClick={() => selectFlavor(flavor.id)}
                     className={`w-full rounded-[1.4rem] border px-4 py-4 text-left transition ${
                       active
                         ? "border-transparent bg-[linear-gradient(135deg,var(--brand),var(--brand-2))] text-white shadow-panel"
                         : "border-[var(--line)] bg-[var(--surface-muted)] text-[var(--ink)] hover:bg-[var(--surface-strong)]"
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold">{flavor.name}</p>
-                        <p className={`mt-1 text-xs ${active ? "text-white/80" : "text-[var(--ink-soft)]"}`}>
-                          {flavor.slug || "no-slug"}
-                        </p>
+                    <button type="button" onClick={() => selectFlavor(flavor.id)} className="w-full text-left">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold">{flavor.name}</p>
+                          <p className={`mt-1 text-xs ${active ? "text-white/80" : "text-[var(--ink-soft)]"}`}>
+                            {flavor.slug || "no-slug"}
+                          </p>
+                        </div>
+                        <span
+                          className={`rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.18em] ${
+                            active ? "bg-white/15 text-white" : "bg-[var(--surface-strong)] text-[var(--ink-soft)]"
+                          }`}
+                        >
+                          {flavor.status || "draft"}
+                        </span>
                       </div>
-                      <span
-                        className={`rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.18em] ${
-                          active ? "bg-white/15 text-white" : "bg-[var(--surface-strong)] text-[var(--ink-soft)]"
+                      <p className={`mt-2 text-sm leading-6 ${active ? "text-white/90" : "text-[var(--ink-soft)]"}`}>
+                        {flavor.description || "No description yet."}
+                      </p>
+                    </button>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          selectFlavor(flavor.id);
+                          onTabChange("steps");
+                        }}
+                        className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${
+                          active
+                            ? "border-white/25 bg-white/10 text-white hover:bg-white/15"
+                            : "border-[var(--line)] bg-[var(--surface-strong)] text-[var(--ink)] hover:bg-[var(--surface-muted)]"
                         }`}
                       >
-                        {flavor.status || "draft"}
-                      </span>
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          selectFlavor(flavor.id);
+                          onTabChange("tester");
+                        }}
+                        className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${
+                          active
+                            ? "border-white/25 bg-white/10 text-white hover:bg-white/15"
+                            : "border-[var(--line)] bg-[var(--surface-strong)] text-[var(--ink)] hover:bg-[var(--surface-muted)]"
+                        }`}
+                      >
+                        Test
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDuplicateFlavor(flavor)}
+                        disabled={savingFlavor}
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                          active
+                            ? "border-white/25 bg-white/10 text-white hover:bg-white/15"
+                            : "border-[var(--line)] bg-[var(--surface-strong)] text-[var(--ink)] hover:bg-[var(--surface-muted)]"
+                        }`}
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                        Duplicate
+                      </button>
                     </div>
-                    <p className={`mt-2 text-sm leading-6 ${active ? "text-white/90" : "text-[var(--ink-soft)]"}`}>
-                      {flavor.description || "No description yet."}
-                    </p>
-                  </button>
+                  </article>
                 );
               })
             )}
@@ -1103,10 +1506,10 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
               <button
                 type="button"
                 onClick={() => void handleApplyColumbiaStarter()}
-                disabled={stepActionId === "starter-template" || savingFlavor}
+                disabled={stepActionId === "starter-template-columbia-student" || savingFlavor}
                 className="pill-button inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-muted)] px-5 py-3 text-sm font-semibold text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-70"
               >
-                {stepActionId === "starter-template" ? <Loader2 className="h-4 w-4 animate-spin" /> : <WandSparkles className="h-4 w-4" />}
+                {stepActionId === "starter-template-columbia-student" ? <Loader2 className="h-4 w-4 animate-spin" /> : <WandSparkles className="h-4 w-4" />}
                 Use Columbia starter
               </button>
             )}
@@ -1170,22 +1573,38 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
             ) : null}
           </div>
 
-          {isColumbiaStudentFlavor ? (
-            <div className="mt-4 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => void handleApplyColumbiaStarter()}
-                disabled={stepActionId === "starter-template"}
-                className="pill-button inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-3 text-sm font-semibold text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {stepActionId === "starter-template" ? <Loader2 className="h-4 w-4 animate-spin" /> : <WandSparkles className="h-4 w-4" />}
-                Load Columbia starter
-              </button>
-              <p className="flex items-center text-sm text-[var(--ink-soft)]">
-                Use emotion and situation, not just literal campus references.
-              </p>
+          <div className="mt-4 rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface-muted)] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-soft)]">Starters</p>
+                <h3 className="mt-1 text-lg font-semibold">Start from a template</h3>
+              </div>
+              {isColumbiaStudentFlavor ? (
+                <p className="text-sm text-[var(--ink-soft)]">Columbia mode uses emotion and situation, not just logos.</p>
+              ) : null}
             </div>
-          ) : null}
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              {availableStarterTemplates.map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  onClick={() => void handleApplyStarterTemplate(template.id)}
+                  disabled={stepActionId === `starter-template-${template.id}`}
+                  className="pill-button rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-left transition hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  <span className="flex items-center gap-2 text-sm font-semibold text-[var(--ink)]">
+                    {stepActionId === `starter-template-${template.id}` ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <WandSparkles className="h-4 w-4 text-[var(--brand)]" />
+                    )}
+                    {template.label}
+                  </span>
+                  <span className="mt-2 block text-xs leading-5 text-[var(--ink-soft)]">{template.description}</span>
+                </button>
+              ))}
+            </div>
+          </div>
 
           <div className="mt-6 space-y-4">
             {selectedStep ? (
@@ -1440,6 +1859,37 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
               </label>
             </div>
 
+            {testBlocker ? (
+              <p className="mt-5 rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-3 text-sm text-[var(--ink-soft)]">
+                {testBlocker}
+              </p>
+            ) : null}
+
+            {generationLog.length > 0 ? (
+              <div className="mt-5 rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface-muted)] p-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-[var(--ink)]">
+                  {runningTest ? <Loader2 className="h-4 w-4 animate-spin text-[var(--brand)]" /> : <CheckCircle2 className="h-4 w-4 text-[var(--brand-2)]" />}
+                  {generationStatus || "Working"}
+                </div>
+                <div className="mt-3 space-y-2">
+                  {generationLog.map((item, index) => {
+                    const isCurrent = item === generationStatus && runningTest;
+                    return (
+                      <div key={`${item}-${index}`} className="flex items-center gap-2 text-xs text-[var(--ink-soft)]">
+                        {isCurrent ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                        {item}
+                      </div>
+                    );
+                  })}
+                </div>
+                {runningTest ? (
+                  <p className="mt-3 text-xs leading-5 text-[var(--ink-soft)]">
+                    If the API is slow, the app will keep checking saved captions and surface them when they appear.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
             {runError ? <p className="danger-panel mt-5 rounded-[1.2rem] px-4 py-3 text-sm">{runError}</p> : null}
 
             <div className="mt-6 flex flex-wrap gap-3">
@@ -1454,7 +1904,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
               <button
                 type="button"
                 onClick={() => void handleRunFlavor()}
-                disabled={runningTest}
+                disabled={runningTest || Boolean(testBlocker)}
                 className="pill-button inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--brand),var(--brand-3))] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {runningTest ? <Loader2 className="h-4 w-4 animate-spin" /> : <WandSparkles className="h-4 w-4" />}
@@ -1477,12 +1927,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                   {latestRun.captions.length === 0 ? (
                     <p className="text-sm text-[var(--ink-soft)]">No captions returned.</p>
                   ) : (
-                    latestRun.captions.map((caption, index) => (
-                      <div key={`${caption}-${index}`} className="rounded-[1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-sm leading-6">
-                        <span className="mr-2 text-xs uppercase tracking-[0.18em] text-[var(--ink-soft)]">#{index + 1}</span>
-                        {caption}
-                      </div>
-                    ))
+                    latestRun.captions.map((caption, index) => renderCaptionCard(caption, index, "latest"))
                   )}
                 </div>
                 {latestRun.storageWarning ? (
@@ -1655,17 +2100,9 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
                         {visibleCaptions.length === 0 ? (
                           <p className="text-sm text-[var(--ink-soft)]">No captions.</p>
                         ) : (
-                          visibleCaptions.map((caption) => (
-                            <article
-                              key={caption.id}
-                              className="rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-sm leading-6"
-                            >
-                              <span className="mr-2 text-xs uppercase tracking-[0.18em] text-[var(--ink-soft)]">
-                                #{caption.rank_index || "-"}
-                              </span>
-                              {caption.caption_text}
-                            </article>
-                          ))
+                          visibleCaptions.map((caption, index) =>
+                            renderCaptionCard(caption.caption_text, index, `archive-${caption.id}`, caption.rank_index || "-"),
+                          )
                         )}
                       </div>
                     </section>
@@ -1692,6 +2129,8 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
           {flashMessage}
         </p>
       ) : null}
+
+      {renderLastResultPanel()}
 
       <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
         {renderSidebar()}
