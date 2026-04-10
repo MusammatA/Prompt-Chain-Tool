@@ -3,6 +3,8 @@ import { createServerClient } from "@supabase/ssr";
 import { canUserAccessAdmin, hasSupabaseEnv } from "./lib/auth";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./lib/supabase-config";
 
+const SESSION_COOKIE_MAX_AGE = 60 * 60 * 24 * 30;
+
 export async function middleware(req: NextRequest) {
   if (!hasSupabaseEnv()) {
     return NextResponse.redirect(new URL("/login?error=missing_env", req.url));
@@ -15,6 +17,11 @@ export async function middleware(req: NextRequest) {
   });
 
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    cookieOptions: {
+      maxAge: SESSION_COOKIE_MAX_AGE,
+      path: "/",
+      sameSite: "lax",
+    },
     cookies: {
       getAll() {
         return req.cookies.getAll();

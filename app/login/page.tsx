@@ -4,6 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "../../lib/supabase-browser";
 
+const STAY_SIGNED_IN_KEY = "prompt-chain-tool-stay-signed-in";
+
+type AdminStatusPayload = {
+  authenticated?: boolean;
+  canAccessAdmin?: boolean;
+  email?: string;
+};
+
 async function fetchAdminStatusWithTimeout(ms: number) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ms);
@@ -12,6 +20,11 @@ async function fetchAdminStatusWithTimeout(ms: number) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function readAdminStatus() {
+  const res = await fetchAdminStatusWithTimeout(8000);
+  return (await res.json().catch(() => null)) as AdminStatusPayload | null;
 }
 
 function readErrorMessage(error: string) {
@@ -28,6 +41,18 @@ export default function LoginPage() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [signingIn, setSigningIn] = useState(false);
+  const [staySignedIn, setStaySignedIn] = useState(true);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(STAY_SIGNED_IN_KEY);
+      if (saved !== null) {
+        setStaySignedIn(saved === "true");
+      }
+    } catch {
+      setStaySignedIn(true);
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,8 +77,7 @@ export default function LoginPage() {
           return;
         }
 
-        const res = await fetchAdminStatusWithTimeout(8000);
-        const payload = (await res.json().catch(() => null)) as { canAccessAdmin?: boolean } | null;
+        let payload = await readAdminStatus();
         if (cancelled) return;
 
         if (payload?.canAccessAdmin) {
@@ -61,9 +85,33 @@ export default function LoginPage() {
           return;
         }
 
-        await supabase.auth.signOut();
+        if (payload?.authenticated === false) {
+          const { data } = await supabase.auth.refreshSession();
+          if (cancelled) return;
+
+          if (data.session) {
+            payload = await readAdminStatus();
+            if (cancelled) return;
+
+            if (payload?.canAccessAdmin) {
+              router.replace("/admin");
+              return;
+            }
+          }
+
+          setCheckingSession(false);
+          setErrorMessage("");
+          return;
+        }
+
+        if (payload?.authenticated !== true) {
+          setCheckingSession(false);
+          setErrorMessage("");
+          return;
+        }
+
         setCheckingSession(false);
-        setErrorMessage("This account does not have admin access.");
+        setErrorMessage("You are signed in, but this account does not have admin access.");
       } catch (_error) {
         if (cancelled) return;
         setCheckingSession(false);
@@ -94,7 +142,15 @@ export default function LoginPage() {
 
     setSigningIn(true);
     setErrorMessage("");
-    await supabase.auth.signOut();
+    try {
+      window.localStorage.setItem(STAY_SIGNED_IN_KEY, String(staySignedIn));
+    } catch {
+      // Local storage is only a preference cache; auth still works without it.
+    }
+
+    if (!staySignedIn) {
+      await supabase.auth.signOut();
+    }
 
     const callbackUrl = `${window.location.origin}/auth/callback`;
     const { data, error } = await supabase.auth.signInWithOAuth({
@@ -102,7 +158,7 @@ export default function LoginPage() {
       options: {
         redirectTo: callbackUrl,
         skipBrowserRedirect: true,
-        queryParams: { prompt: "select_account" },
+        queryParams: staySignedIn ? undefined : { prompt: "select_account" },
       },
     });
 
@@ -166,6 +222,21 @@ export default function LoginPage() {
               ) : null}
 
               {errorMessage ? <p className="danger-panel mt-5 rounded-[1rem] px-4 py-3 text-sm">{errorMessage}</p> : null}
+
+              <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-[1rem] border border-[var(--line)] bg-[var(--surface-muted)] px-4 py-3 text-left text-sm text-[var(--ink-soft)]">
+                <input
+                  type="checkbox"
+                  checked={staySignedIn}
+                  onChange={(event) => setStaySignedIn(event.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-[var(--line)] accent-[var(--accent-blue)]"
+                />
+                <span>
+                  <span className="block font-semibold text-[var(--ink)]">Stay signed in</span>
+                  <span className="block text-xs leading-5 text-[var(--ink-soft)]">
+                    Keep this admin session when you come back later.
+                  </span>
+                </span>
+              </label>
 
               <button
                 type="button"
