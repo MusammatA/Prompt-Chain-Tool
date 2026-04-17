@@ -118,6 +118,38 @@ function slugify(value: string) {
     .replace(/(^-|-$)+/g, "");
 }
 
+function buildUniqueFlavorCopyName(existingFlavors: HumorFlavor[], sourceName: string) {
+  const normalizedExistingNames = new Set(
+    existingFlavors.map((item) => String(item.name || "").trim().toLowerCase()).filter(Boolean),
+  );
+  const baseName = `${sourceName.trim() || "Flavor"} Copy`;
+  let nextName = baseName;
+  let suffix = 2;
+
+  while (normalizedExistingNames.has(nextName.trim().toLowerCase())) {
+    nextName = `${baseName} ${suffix}`;
+    suffix += 1;
+  }
+
+  return nextName;
+}
+
+function buildUniqueFlavorCopySlug(existingFlavors: HumorFlavor[], sourceFlavor: HumorFlavor) {
+  const normalizedExistingSlugs = new Set(
+    existingFlavors.map((item) => String(item.slug || "").trim().toLowerCase()).filter(Boolean),
+  );
+  const baseSlug = `${slugify(sourceFlavor.slug || sourceFlavor.name || "flavor") || "flavor"}-copy`;
+  let nextSlug = baseSlug;
+  let suffix = 2;
+
+  while (normalizedExistingSlugs.has(nextSlug)) {
+    nextSlug = `${baseSlug}-${suffix}`;
+    suffix += 1;
+  }
+
+  return nextSlug;
+}
+
 function formatTimestamp(value?: string | null) {
   if (!value) return "Unknown time";
   const date = new Date(value);
@@ -614,10 +646,11 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
 
     try {
       const sourceSteps = await fetchHumorFlavorSteps(flavor.id);
-      const copyName = `${flavor.name} Copy`;
+      const copyName = buildUniqueFlavorCopyName(flavors, flavor.name);
+      const copySlug = buildUniqueFlavorCopySlug(flavors, flavor);
       const copiedFlavor = await createHumorFlavor({
         name: copyName,
-        slug: `${slugify(flavor.slug || flavor.name || "flavor")}-copy-${Date.now().toString().slice(-5)}`,
+        slug: copySlug,
         description: flavor.description || "",
         notes: flavor.notes || "",
         status: "draft",
