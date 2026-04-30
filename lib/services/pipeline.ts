@@ -61,7 +61,8 @@ const GENERATE_CAPTIONS_TIMEOUT_MS = 30_000;
 const SCHEDULED_CAPTION_POLL_TIMEOUT_MS = 90_000;
 const SCHEDULED_CAPTION_POLL_INTERVAL_MS = 4_000;
 const RECOVERY_ROUTE_TIMEOUT_MS = 15_000;
-const EARLY_RECOVERY_POLL_TIMEOUT_MS = 18_000;
+const EARLY_RECOVERY_POLL_TIMEOUT_MS = Math.max(18_000, GENERATE_CAPTIONS_TIMEOUT_MS - 2_000);
+const POST_API_ERROR_RECOVERY_POLL_TIMEOUT_MS = 45_000;
 
 type ErrorEnvelope = {
   message?: string | null;
@@ -427,6 +428,24 @@ async function pollForScheduledCaptions(
   return null;
 }
 
+function buildScheduledRecoveryResult(options: {
+  payload: GenerateCaptionsPayload;
+  imageId: string;
+  imageUrl: string;
+  scheduledResult: NonNullable<Awaited<ReturnType<typeof pollForScheduledCaptions>>>;
+}) {
+  const { payload, imageId, imageUrl, scheduledResult } = options;
+
+  return {
+    requestPayload: payload,
+    responsePayload: scheduledResult.responsePayload,
+    captions: scheduledResult.captions,
+    modelTag: "scheduled-caption-fallback",
+    imageId,
+    imageUrl,
+  } satisfies RunFlavorResult;
+}
+
 async function uploadFileToPipeline(accessToken: string, file: File): Promise<UploadFileResult> {
   const presignedUrlEndpoint = `${PIPELINE_BASE_URL}/pipeline/generate-presigned-url`;
   const step1Res = await fetchWithTimeout(
@@ -584,33 +603,41 @@ async function requestGeneratedCaptionsFromApi(options: {
   } satisfies RunFlavorResult;
 }
 
-function createEarlyRecoveryAttempt(options: {
+async function pollForScheduledRunResult(
+  options: {
+    payload: GenerateCaptionsPayload;
+    imageId: string;
+    imageUrl: string;
+    flavorId: string;
+    baselineCaptionIds: Set<string>;
+  },
+  timeoutMs: number,
+) {
+  const { payload, imageId, imageUrl, flavorId, baselineCaptionIds } = options;
+  const scheduledResult = await pollForScheduledCaptions(flavorId, imageId, baselineCaptionIds, timeoutMs);
+  if (!scheduledResult) return null;
+
+  return buildScheduledRecoveryResult({
+    payload,
+    imageId,
+    imageUrl,
+    scheduledResult,
+  });
+}
+
+async function createEarlyRecoveryAttempt(options: {
   payload: GenerateCaptionsPayload;
   imageId: string;
   imageUrl: string;
   flavorId: string;
   baselineCaptionIds: Set<string>;
 }) {
-  const { payload, imageId, imageUrl, flavorId, baselineCaptionIds } = options;
-
-  return new Promise<RunFlavorResult>((resolve) => {
-    void pollForScheduledCaptions(flavorId, imageId, baselineCaptionIds, EARLY_RECOVERY_POLL_TIMEOUT_MS)
-      .then((scheduledResult) => {
-        if (!scheduledResult) return;
-
-        resolve({
-          requestPayload: payload,
-          responsePayload: scheduledResult.responsePayload,
-          captions: scheduledResult.captions,
-          modelTag: "scheduled-caption-fallback",
-          imageId,
-          imageUrl,
-        } satisfies RunFlavorResult);
-      })
-      .catch(() => {
-        // Ignore recovery polling errors here and let the main API attempt decide the result.
-      });
-  });
+  try {
+    return await pollForScheduledRunResult(options, EARLY_RECOVERY_POLL_TIMEOUT_MS);
+  } catch {
+    // Ignore recovery polling errors here and let the main API attempt decide the result.
+    return null;
+  }
 }
 
 async function requestGeneratedCaptions(options: {
@@ -620,6 +647,7 @@ async function requestGeneratedCaptions(options: {
   imageUrl: string;
   flavorId: string;
   baselineCaptionIds: Set<string>;
+  onStatus?: (message: string) => void;
 }) {
   const apiAttempt = requestGeneratedCaptionsFromApi(options);
   const recoveryAttempt = createEarlyRecoveryAttempt(options);
@@ -633,12 +661,24 @@ async function requestGeneratedCaptions(options: {
   ]);
 
   if (result.kind === "recovery") {
-    void apiAttempt.catch(() => undefined);
-    return result.value;
+    if (result.value) {
+      void apiAttempt.catch(() => undefined);
+      return result.value;
+    }
+
+    return await apiAttempt;
   }
 
   if (result.kind === "api") {
     return result.value;
+  }
+
+  if (shouldRetryWithLegacyPayload(result.error)) {
+    options.onStatus?.("Waiting for saved captions");
+    const recoveredAfterError = await pollForScheduledRunResult(options, POST_API_ERROR_RECOVERY_POLL_TIMEOUT_MS);
+    if (recoveredAfterError) {
+      return recoveredAfterError;
+    }
   }
 
   throw result.error;
@@ -705,28 +745,11 @@ export async function runFlavorPromptChain(request: RunFlavorRequest): Promise<R
       imageUrl,
       flavorId: flavor.id,
       baselineCaptionIds,
+      onStatus,
     });
   } catch (primaryError) {
     if (!shouldRetryWithLegacyPayload(primaryError)) {
       throw primaryError;
-    }
-
-    const recoveredPrimaryResult = await pollForScheduledCaptions(
-      flavor.id,
-      imageId,
-      baselineCaptionIds,
-      10_000,
-    );
-    if (recoveredPrimaryResult) {
-      onStatus?.("Recovered saved captions");
-      return {
-        requestPayload,
-        responsePayload: recoveredPrimaryResult.responsePayload,
-        captions: recoveredPrimaryResult.captions,
-        modelTag: "scheduled-caption-fallback",
-        imageId,
-        imageUrl,
-      };
     }
 
     const legacyPayload = { imageId };
@@ -738,6 +761,7 @@ export async function runFlavorPromptChain(request: RunFlavorRequest): Promise<R
       imageUrl,
       flavorId: flavor.id,
       baselineCaptionIds,
+      onStatus,
     });
 
     return {
