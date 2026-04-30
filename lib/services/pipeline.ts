@@ -297,6 +297,21 @@ function shouldRetryWithLegacyPayload(error: unknown) {
   );
 }
 
+function isLlmResponseForeignKeyError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  return /llm_model_responses/i.test(message) && /(foreign key|violates foreign)/i.test(message);
+}
+
+function stripPipelineStepIdentity(steps: PipelineStepPayload[]) {
+  return steps.map(({ order, title, systemPrompt, instruction, outputLabel }) => ({
+    order,
+    title,
+    systemPrompt,
+    instruction,
+    outputLabel,
+  }));
+}
+
 function getCaptionTextFromRow(row: Record<string, unknown>) {
   const candidates = [row.caption_text, row.content, row.text, row.generated_caption, row.output];
   for (const candidate of candidates) {
@@ -748,8 +763,43 @@ export async function runFlavorPromptChain(request: RunFlavorRequest): Promise<R
       onStatus,
     });
   } catch (primaryError) {
-    if (!shouldRetryWithLegacyPayload(primaryError)) {
-      throw primaryError;
+    let nextError = primaryError;
+
+    if (isLlmResponseForeignKeyError(primaryError)) {
+      const promptOnlyPayload = {
+        imageId,
+        humorFlavorName: flavor.name,
+        promptChain: requestPayload.promptChain,
+        steps: stripPipelineStepIdentity(pipelineSteps),
+      };
+
+      try {
+        onStatus?.("Retrying without linked flavor ids");
+        const promptOnlyResult = await requestGeneratedCaptions({
+          accessToken,
+          payload: promptOnlyPayload,
+          imageId,
+          imageUrl,
+          flavorId: flavor.id,
+          baselineCaptionIds,
+          onStatus,
+        });
+
+        return {
+          ...promptOnlyResult,
+          requestPayload: {
+            mode: "prompt-only-fk-fallback",
+            originalPromptChainPayload: requestPayload,
+            retryPayload: promptOnlyPayload,
+          },
+        };
+      } catch (promptOnlyError) {
+        nextError = promptOnlyError;
+      }
+    }
+
+    if (!shouldRetryWithLegacyPayload(nextError)) {
+      throw nextError;
     }
 
     const legacyPayload = { imageId };
