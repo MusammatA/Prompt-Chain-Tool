@@ -73,6 +73,12 @@ type LatestRunState = RunFlavorResult & {
   storageWarning?: string;
 };
 
+type AttemptRecoveryContext = {
+  imageId: string;
+  imageUrl: string;
+  requestStartedAtMs: number;
+};
+
 type StarterStep = {
   title: string;
   instruction: string;
@@ -158,6 +164,12 @@ function formatTimestamp(value?: string | null) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
+}
+
+function parseTimestampMs(value?: string | null) {
+  if (!value) return 0;
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function stringifyJson(value: unknown) {
@@ -1045,7 +1057,7 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
     );
   }
 
-  async function refreshArchiveAndFindLatestCaptions(flavorId: string) {
+  async function refreshArchiveAndFindCaptionsForAttempt(flavorId: string, context: AttemptRecoveryContext) {
     const [runData, captionData] = await Promise.all([
       fetchPromptChainRuns(flavorId),
       fetchGeneratedFlavorCaptions(flavorId),
@@ -1055,21 +1067,34 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
     setCaptions(captionData);
     setSelectedRunId(runData[0]?.id || "");
 
-    const latestRunRecord = runData[0] ?? null;
-    const recoveredCaptions = latestRunRecord
-      ? captionData
-          .filter((item) => item.humor_flavor_run_id === latestRunRecord.id)
-          .sort((a, b) => (a.rank_index ?? 999) - (b.rank_index ?? 999))
-          .map((item) => item.caption_text)
-          .filter(Boolean)
-      : captionData
-          .slice(0, 5)
-          .map((item) => item.caption_text)
-          .filter(Boolean);
+    const requestFloorMs = context.requestStartedAtMs - 10_000;
+    const normalizedImageId = String(context.imageId || "").trim();
+
+    const matchingRun = runData.find((run) => {
+      if (!normalizedImageId || String(run.image_id || "").trim() !== normalizedImageId) return false;
+      return parseTimestampMs(run.created_at) >= requestFloorMs;
+    }) ?? null;
+
+    const matchingCaptionRows = captionData
+      .filter((item) => {
+        if (!normalizedImageId || String(item.image_id || "").trim() !== normalizedImageId) return false;
+        return parseTimestampMs(item.created_at) >= requestFloorMs;
+      })
+      .sort((a, b) => {
+        if (matchingRun) {
+          const aMatchesRun = a.humor_flavor_run_id === matchingRun.id ? 0 : 1;
+          const bMatchesRun = b.humor_flavor_run_id === matchingRun.id ? 0 : 1;
+          if (aMatchesRun !== bMatchesRun) return aMatchesRun - bMatchesRun;
+        }
+
+        const rankDelta = (a.rank_index ?? 999) - (b.rank_index ?? 999);
+        if (rankDelta !== 0) return rankDelta;
+        return parseTimestampMs(b.created_at) - parseTimestampMs(a.created_at);
+      });
 
     return {
-      latestRunRecord,
-      recoveredCaptions,
+      latestRunRecord: matchingRun,
+      recoveredCaptions: matchingCaptionRows.map((item) => item.caption_text).filter(Boolean),
     };
   }
 
@@ -1181,6 +1206,11 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
     setLatestRun(null);
     setGenerationLog([]);
     markGenerationStatus("Preparing test");
+    const attemptRecoveryContext: AttemptRecoveryContext = {
+      imageId: selectedImageId,
+      imageUrl: getImageUrl(selectedImage) || manualImageUrl.trim(),
+      requestStartedAtMs: Date.now(),
+    };
 
     try {
       markGenerationStatus("Checking admin session");
@@ -1194,6 +1224,10 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
         manualImageUrl,
         uploadFile,
         onStatus: markGenerationStatus,
+        onImageRegistered: ({ imageId, imageUrl }) => {
+          attemptRecoveryContext.imageId = imageId;
+          attemptRecoveryContext.imageUrl = imageUrl;
+        },
       });
 
       let persistedRunId = "";
@@ -1247,10 +1281,13 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
       onTabChange("archive");
     } catch (error) {
       const originalMessage = getErrorMessage(error);
-      markGenerationStatus("Checking saved captions");
+      markGenerationStatus("Checking whether this run finished");
 
       try {
-        const { latestRunRecord, recoveredCaptions } = await refreshArchiveAndFindLatestCaptions(selectedFlavor.id);
+        const { latestRunRecord, recoveredCaptions } = await refreshArchiveAndFindCaptionsForAttempt(
+          selectedFlavor.id,
+          attemptRecoveryContext,
+        );
         if (recoveredCaptions.length > 0) {
           setLatestRun({
             requestPayload: {
@@ -1258,21 +1295,21 @@ export function FlavorStudio({ activeTab, onTabChange }: FlavorStudioProps) {
               originalError: originalMessage,
             },
             responsePayload: {
-              generator: "archive-recovery",
+              generator: "attempt-recovery",
               data: {
                 captions: recoveredCaptions.map((caption_text) => ({ caption_text })),
               },
             },
             captions: recoveredCaptions,
-            modelTag: latestRunRecord?.pipeline_model || "archive-recovery",
-            imageId: latestRunRecord?.image_id || selectedImageId || "",
-            imageUrl: latestRunRecord?.image_url || getImageUrl(selectedImage) || manualImageUrl,
+            modelTag: latestRunRecord?.pipeline_model || "attempt-recovery",
+            imageId: latestRunRecord?.image_id || attemptRecoveryContext.imageId || "",
+            imageUrl: latestRunRecord?.image_url || attemptRecoveryContext.imageUrl,
             persistedRunId: latestRunRecord?.id,
-            storageWarning: `The API response failed, but saved captions were found. Original message: ${originalMessage}`,
+            storageWarning: `The request timed out, but the backend finished generating captions and they were recovered for this run. Original message: ${originalMessage}`,
           });
-          markGenerationStatus("Recovered saved captions");
+          markGenerationStatus("Recovered this run's captions");
           setRunError("");
-          setFlashMessage("The API response was slow, but saved captions were recovered.");
+          setFlashMessage("The request timed out, but this run's generated captions were recovered.");
           onTabChange("archive");
           return;
         }

@@ -25,6 +25,7 @@ type RunFlavorRequest = {
   manualImageUrl?: string;
   uploadFile?: File | null;
   onStatus?: (message: string) => void;
+  onImageRegistered?: (image: { imageId: string; imageUrl: string }) => void;
 };
 
 type PipelineStepPayload = {
@@ -700,7 +701,7 @@ async function requestGeneratedCaptions(options: {
 }
 
 export async function runFlavorPromptChain(request: RunFlavorRequest): Promise<RunFlavorResult> {
-  const { accessToken, flavor, steps, selectedImage, manualImageUrl, uploadFile, onStatus } = request;
+  const { accessToken, flavor, steps, selectedImage, manualImageUrl, uploadFile, onStatus, onImageRegistered } = request;
   const orderedSteps = [...steps].sort((a, b) => a.step_order - b.step_order);
   const pipelineSteps = normalizePipelineSteps(orderedSteps);
 
@@ -731,6 +732,8 @@ export async function runFlavorPromptChain(request: RunFlavorRequest): Promise<R
   if (!imageId) {
     throw new Error("Choose a test-set image, paste an image URL, or upload a file before running the prompt chain.");
   }
+
+  onImageRegistered?.({ imageId, imageUrl });
 
   let baselineCaptionIds = new Set<string>();
   try {
